@@ -1,4 +1,5 @@
 /build
+/.idea/
 /tests/out
 .DS_Store
 
