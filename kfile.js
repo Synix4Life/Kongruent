@@ -1,6 +1,8 @@
 let project = new Project('Kongruent');
 project.setExecutableName('kongruent');
 
+project.cppStd = 'c++20';
+
 let library = false;
 
 if (library) {
