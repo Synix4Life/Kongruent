@@ -72,7 +72,7 @@ static void read_file(char *filename) {
 
 	char *data = (char *)malloc(size + 1);
 
-	debug_context context = INIT_ZERO;
+	debug_context context = KONG_INIT_ZERO;
 	context.filename      = filename;
 	check(data != NULL, context, "Could not allocate memory to read file %s", filename);
 
@@ -93,7 +93,7 @@ typedef enum integration_kind { INTEGRATION_KORE3 } integration_kind;
 int main(int argc, char **argv) {
 	arg_mode mode = MODE_MODECHECK;
 
-	char            *inputs[256] = INIT_ZERO;
+	char            *inputs[256] = KONG_INIT_ZERO;
 	size_t           inputs_size = 0;
 	char            *platform    = NULL;
 	api_kind         api         = API_DEFAULT;
@@ -217,7 +217,7 @@ int main(int argc, char **argv) {
 				api = API_DEFAULT;
 			}
 			else {
-				debug_context context = INIT_ZERO;
+				debug_context context = KONG_INIT_ZERO;
 				error(context, "Unknown API %s", arg);
 			}
 			mode = MODE_MODECHECK;
@@ -228,7 +228,7 @@ int main(int argc, char **argv) {
 				integration = INTEGRATION_KORE3;
 			}
 			else {
-				debug_context context = INIT_ZERO;
+				debug_context context = KONG_INIT_ZERO;
 				error(context, "Unknown integration %s", arg);
 			}
 			mode = MODE_MODECHECK;
@@ -237,7 +237,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	debug_context context = INIT_ZERO;
+	debug_context context = KONG_INIT_ZERO;
 	check(platform != NULL, context, "platform parameter not found");
 
 	if (api == API_DEFAULT) {
@@ -319,6 +319,10 @@ int main(int argc, char **argv) {
 
 	analyze();
 
+	transform(TRANSFORM_FLAG_REDUCE_BLOCKS);
+
+	//
+
 	switch (api) {
 	case API_VULKAN:
 		transform(TRANSFORM_FLAG_ONE_COMPONENT_SWIZZLE | TRANSFORM_FLAG_BINARY_UNIFY_LENGTH);
@@ -355,7 +359,7 @@ int main(int argc, char **argv) {
 		kompjuta_export(output);
 		break;
 	default: {
-		debug_context context = INIT_ZERO;
+		debug_context context = KONG_INIT_ZERO;
 		error(context, "Unknown API");
 	}
 	}

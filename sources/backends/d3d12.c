@@ -28,7 +28,7 @@ static const wchar_t *shader_string(shader_stage stage) {
 	case SHADER_STAGE_MESH:
 		return L"ms_6_5";
 	default: {
-		debug_context context = INIT_ZERO;
+		debug_context context = KONG_INIT_ZERO;
 		error(context, "Unsupported shader stage/version combination");
 		return L"unsupported";
 	}
@@ -82,7 +82,7 @@ int compile_hlsl_to_d3d12(const char *source, uint8_t **output, size_t *outputle
 	result                     = compiler_result->lpVtbl->GetStatus(compiler_result, &compilation_result);
 	assert(result == S_OK);
 
-	if (result == S_OK) {
+	if (result == S_OK && compilation_result == S_OK) {
 		IDxcBlob     *shader_buffer = NULL;
 		IDxcBlobWide *shader_name   = NULL;
 		result                      = compiler_result->lpVtbl->GetOutput(compiler_result, DXC_OUT_OBJECT, &IID_IDxcBlob, (void **)&shader_buffer, &shader_name);

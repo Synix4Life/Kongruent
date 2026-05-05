@@ -39,7 +39,7 @@ variable find_local_var(block *b, name_id name) {
 
 	for (size_t i = 0; i < b->vars.size; ++i) {
 		if (b->vars.v[i].name == name) {
-			debug_context context = INIT_ZERO;
+			debug_context context = KONG_INIT_ZERO;
 			check(b->vars.v[i].type.type != NO_TYPE, context, "Local variable does not have a type");
 			variable var;
 			var.index = b->vars.v[i].variable_id;
@@ -65,7 +65,7 @@ variable find_variable(block *parent, name_id name) {
 			return v;
 		}
 		else {
-			debug_context context = INIT_ZERO;
+			debug_context context = KONG_INIT_ZERO;
 			error(context, "Variable %s not found", get_name(name));
 
 			variable v;
@@ -78,7 +78,7 @@ variable find_variable(block *parent, name_id name) {
 	}
 }
 
-const char all_names[1024 * 1024] = INIT_ZERO;
+const char all_names[1024 * 1024] = KONG_INIT_ZERO;
 
 static uint64_t next_variable_id = 1;
 
@@ -112,7 +112,7 @@ variable emit_expression(opcodes *code, block *parent, expression *e) {
 		expression *left  = e->binary.left;
 		expression *right = e->binary.right;
 
-		debug_context context = INIT_ZERO;
+		debug_context context = KONG_INIT_ZERO;
 
 		switch (e->binary.op) {
 		case OPERATOR_EQUALS:
@@ -343,7 +343,7 @@ variable emit_expression(opcodes *code, block *parent, expression *e) {
 				break;
 			}
 			default: {
-				debug_context context = INIT_ZERO;
+				debug_context context = KONG_INIT_ZERO;
 				error(context, "Expected a variable or an access");
 			}
 			}
@@ -354,7 +354,7 @@ variable emit_expression(opcodes *code, block *parent, expression *e) {
 		break;
 	}
 	case EXPRESSION_UNARY: {
-		debug_context context = INIT_ZERO;
+		debug_context context = KONG_INIT_ZERO;
 		switch (e->unary.op) {
 		case OPERATOR_EQUALS:
 			error(context, "not implemented");
@@ -484,7 +484,7 @@ variable emit_expression(opcodes *code, block *parent, expression *e) {
 		o.op_call.func = e->call.func_name;
 		o.op_call.var  = v;
 
-		debug_context context = INIT_ZERO;
+		debug_context context = KONG_INIT_ZERO;
 		check(e->call.parameters.size <= sizeof(o.op_call.parameters) / sizeof(variable), context, "Call parameters missized");
 		for (size_t i = 0; i < e->call.parameters.size; ++i) {
 			o.op_call.parameters[i] = emit_expression(code, parent, e->call.parameters.e[i]);
@@ -557,13 +557,13 @@ variable emit_expression(opcodes *code, block *parent, expression *e) {
 		return v;
 	}
 	default: {
-		debug_context context = INIT_ZERO;
+		debug_context context = KONG_INIT_ZERO;
 		error(context, "not implemented");
 	}
 	}
 
 	{
-		debug_context context = INIT_ZERO;
+		debug_context context = KONG_INIT_ZERO;
 		error(context, "Supposedly unreachable code reached");
 		variable v;
 		v.index = 0;
@@ -576,7 +576,7 @@ typedef struct block_ids {
 	uint64_t end;
 } block_ids;
 
-static block_ids emit_statement(opcodes *code, block *parent, statement *statement) {
+static block_ids emit_statement(opcodes *code, block *parent, statement *statement, uint64_t block_start_id) {
 	switch (statement->kind) {
 	case STATEMENT_EXPRESSION:
 		emit_expression(code, parent, statement->expr);
@@ -608,7 +608,7 @@ static block_ids emit_statement(opcodes *code, block *parent, statement *stateme
 			variable condition;
 			variable summed_condition;
 		};
-		struct previous_condition previous_conditions[64]  = INIT_ZERO;
+		struct previous_condition previous_conditions[64]  = KONG_INIT_ZERO;
 		uint8_t                   previous_conditions_size = 0;
 
 		{
@@ -625,7 +625,9 @@ static block_ids emit_statement(opcodes *code, block *parent, statement *stateme
 			previous_conditions[previous_conditions_size].condition = initial_condition;
 			previous_conditions_size += 1;
 
-			block_ids ids = emit_statement(code, parent, statement->iffy.if_block);
+			uint64_t block_id = next_variable_id;
+			++next_variable_id;
+			block_ids ids = emit_statement(code, parent, statement->iffy.if_block, block_id);
 
 			written_opcode->op_if.start_id = ids.start;
 			written_opcode->op_if.end_id   = ids.end;
@@ -698,7 +700,9 @@ static block_ids emit_statement(opcodes *code, block *parent, statement *stateme
 			{
 				opcode *written_opcode = emit_op(code, &o);
 
-				block_ids ids = emit_statement(code, parent, statement->iffy.else_blocks[i]);
+				uint64_t block_id = next_variable_id;
+				++next_variable_id;
+				block_ids ids = emit_statement(code, parent, statement->iffy.else_blocks[i], block_id);
 
 				written_opcode->op_if.start_id = ids.start;
 				written_opcode->op_if.end_id   = ids.end;
@@ -738,7 +742,7 @@ static block_ids emit_statement(opcodes *code, block *parent, statement *stateme
 			emit_op(code, &o);
 		}
 
-		emit_statement(code, parent, statement->whiley.while_block);
+		emit_statement(code, parent, statement->whiley.while_block, continue_id);
 
 		{
 			opcode o;
@@ -770,7 +774,7 @@ static block_ids emit_statement(opcodes *code, block *parent, statement *stateme
 			emit_op(code, &o);
 		}
 
-		emit_statement(code, parent, statement->whiley.while_block);
+		emit_statement(code, parent, statement->whiley.while_block, continue_id);
 
 		{
 			opcode o;
@@ -803,29 +807,42 @@ static block_ids emit_statement(opcodes *code, block *parent, statement *stateme
 			statement->block.vars.v[i].variable_id = var.index;
 		}
 
-		uint64_t start_block_id = next_variable_id;
-		++next_variable_id;
+		bool     loop_block;
+		uint64_t start_block_id;
+		if (block_start_id != 0) {
+			start_block_id = block_start_id;
+			loop_block     = true;
+		}
+		else {
+			start_block_id = next_variable_id;
+			++next_variable_id;
+			loop_block = false;
+		}
 
 		uint64_t end_block_id = next_variable_id;
 		++next_variable_id;
 
 		{
 			opcode o;
-			o.type        = OPCODE_BLOCK_START;
-			o.op_block.id = start_block_id;
-			o.size        = OP_SIZE(o, op_block);
+			o.type                     = OPCODE_BLOCK_START;
+			o.op_block.start_id        = start_block_id;
+			o.op_block.end_id          = end_block_id;
+			o.op_block.condition_block = loop_block;
+			o.size                     = OP_SIZE(o, op_block);
 			emit_op(code, &o);
 		}
 
 		for (size_t i = 0; i < statement->block.statements.size; ++i) {
-			emit_statement(code, &statement->block, statement->block.statements.s[i]);
+			emit_statement(code, &statement->block, statement->block.statements.s[i], 0);
 		}
 
 		{
 			opcode o;
-			o.type        = OPCODE_BLOCK_END;
-			o.op_block.id = end_block_id;
-			o.size        = OP_SIZE(o, op_block);
+			o.type                     = OPCODE_BLOCK_END;
+			o.op_block.start_id        = start_block_id;
+			o.op_block.end_id          = end_block_id;
+			o.op_block.condition_block = loop_block;
+			o.size                     = OP_SIZE(o, op_block);
 			emit_op(code, &o);
 		}
 
@@ -839,7 +856,7 @@ static block_ids emit_statement(opcodes *code, block *parent, statement *stateme
 		o.type = OPCODE_VAR;
 		o.size = OP_SIZE(o, op_var);
 
-		variable init_var = INIT_ZERO;
+		variable init_var = KONG_INIT_ZERO;
 		if (statement->local_variable.init != NULL) {
 			init_var = emit_expression(code, parent, statement->local_variable.init);
 		}
@@ -847,7 +864,7 @@ static block_ids emit_statement(opcodes *code, block *parent, statement *stateme
 		variable local_var                        = find_local_var(parent, statement->local_variable.var.name);
 		statement->local_variable.var.variable_id = local_var.index;
 		o.op_var.var.index                        = statement->local_variable.var.variable_id;
-		debug_context context                     = INIT_ZERO;
+		debug_context context                     = KONG_INIT_ZERO;
 		check(statement->local_variable.var.type.type != NO_TYPE, context, "Local var has no type");
 		o.op_var.var.type = statement->local_variable.var.type;
 		emit_op(code, &o);
@@ -896,7 +913,7 @@ void compile_function_block(opcodes *code, struct statement *block) {
 	}
 
 	if (block->kind != STATEMENT_BLOCK) {
-		debug_context context = INIT_ZERO;
+		debug_context context = KONG_INIT_ZERO;
 		error(context, "Expected a block");
 	}
 	for (size_t i = 0; i < block->block.vars.size; ++i) {
@@ -904,6 +921,6 @@ void compile_function_block(opcodes *code, struct statement *block) {
 		block->block.vars.v[i].variable_id = var.index;
 	}
 	for (size_t i = 0; i < block->block.statements.size; ++i) {
-		emit_statement(code, &block->block, block->block.statements.s[i]);
+		emit_statement(code, &block->block, block->block.statements.s[i], 0);
 	}
 }

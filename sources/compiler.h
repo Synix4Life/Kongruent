@@ -168,7 +168,9 @@ typedef struct opcode {
 			uint64_t end_id;
 		} op_while;
 		struct {
-			uint64_t id;
+			uint64_t start_id;
+			uint64_t end_id;
+			bool     condition_block;
 		} op_block;
 		struct {
 			uint8_t nothing;
