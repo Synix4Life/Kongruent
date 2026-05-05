@@ -114,6 +114,7 @@ static void write_functions(void) {
 				break;
 			}
 			case OPCODE_VAR:
+				kong_log(LOG_LEVEL_INFO, "$%zu VAR", o->op_var.var.index);
 				break;
 			case OPCODE_NOT:
 				kong_log(LOG_LEVEL_INFO, "$%zu = NOT $%zu", o->op_negate.to.index, o->op_negate.from.index);
