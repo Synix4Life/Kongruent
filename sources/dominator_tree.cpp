@@ -1,9 +1,11 @@
 #include "dominator_tree.h"
 
 #include <algorithm>
+#include <limits>
 #include <vector>
 
 #include "cfg.h"
+#include "global.h"
 #include "log.h"
 #include "errors.h"
 
@@ -12,7 +14,7 @@
  *  -------------------------- DJ GRAPH ---------------------------
  *  --------------------------------------------------------------- */
 
-void reset_attributes(dj_tree& tree){
+void reset_attributes(dj_tree& tree) noexcept{
     for(auto& block: tree.blocks){
         block.alpha = false;
         block.in_phi = false;
@@ -21,13 +23,13 @@ void reset_attributes(dj_tree& tree){
 }
 
 
-dj_tree build_dj(cfg& graph, std::vector<std::uint16_t>& IDOMs){
+[[nodiscard]] dj_tree build_dj(cfg& graph, std::vector<std::uint16_t>& IDOMs){
     /* --------------- INIT --------------- */
 
     const int N = graph.blocks.size();
 
     if(N == 0){
-        debug_context context = {0};
+        debug_context context = KONG_INIT_ZERO;
         error(context, "[INTERNAL ERROR] DJ Graph for CFG(%s) couldn't be build, since no Basic Blocks exist in it", graph.name.c_str());
     }
     
@@ -102,10 +104,10 @@ dj_tree build_dj(cfg& graph, std::vector<std::uint16_t>& IDOMs){
  * 
  * @throws [Internal Error]: Runtime Exception -> If there was a construction error
  */
-void verify_leveling(PiggyBank& bank){
+void verify_leveling(const PiggyBank& bank){
     for(int i = 0; i < bank.bank_levels.size(); i++){
         if(bank.bank_levels[i].lvl != i){
-            debug_context context = {0};
+            debug_context context = KONG_INIT_ZERO;
             error(context, "[INTERNAL ERROR] PiggyBank Levels incorrectly initialized");
         }
     }
@@ -120,7 +122,7 @@ void verify_leveling(PiggyBank& bank){
  * 
  * @return Index of the next node to look at
  */
-std::uint16_t get_next(PiggyBank& bank, std::uint8_t& current_level){
+[[nodiscard]] std::uint16_t get_next(PiggyBank& bank, std::uint8_t& current_level){
     while (true){
         auto& current_nodes = bank.bank_levels[current_level].nodes;
 
@@ -146,7 +148,7 @@ std::uint16_t get_next(PiggyBank& bank, std::uint8_t& current_level){
  * @param ix The index ix (offset- cleaned) -> I.e. if we have node at index n and , pass ix = n - offset
  * @param offset The offset
  */
-void insert_node(PiggyBank& bank, dj_tree& tree, std::uint16_t ix, const int offset){
+void insert_node(PiggyBank& bank, dj_tree& tree, const std::uint16_t ix, const int offset){
     bank.bank_levels[tree.blocks[ix].level].nodes.push_back(ix + offset);
 }
 
@@ -164,6 +166,10 @@ void insert_node(PiggyBank& bank, dj_tree& tree, std::uint16_t ix, const int off
  */
 void visit(std::vector<std::uint16_t>& IDF, cfg& graph, dj_tree& tree, PiggyBank& bank, const int offset, dominator_block& node, std::uint8_t current_level){
     for(auto& edge: node.edges){
+        if(edge.dest_id - offset >= tree.blocks.size()){
+            kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] Critical -> Offset calculations produced unsigend integer underflow");
+            exit(1);
+        }
         auto& to_block = tree.blocks[edge.dest_id - offset];
         if(edge.type == J_EDGE){
             if(to_block.level <= node.level){
@@ -186,7 +192,7 @@ void visit(std::vector<std::uint16_t>& IDF, cfg& graph, dj_tree& tree, PiggyBank
 }
 
 
-std::vector<std::uint16_t> calculate_phi_placement(cfg& graph, dj_tree& tree, std::vector<std::uint16_t> N_alpha){
+[[nodiscard]] std::vector<std::uint16_t> calculate_phi_placement(cfg& graph, dj_tree& tree, std::vector<std::uint16_t> N_alpha){
     /* --------------- INIT --------------- */
     
     std::vector<std::uint16_t> IDF;
@@ -224,6 +230,7 @@ std::vector<std::uint16_t> calculate_phi_placement(cfg& graph, dj_tree& tree, st
 
     /* ------------- FINALIZE ------------- */
 
+    std::sort(IDF.begin(), IDF.end());
     return IDF;
 }
 
@@ -240,18 +247,15 @@ std::vector<std::uint16_t> calculate_phi_placement(cfg& graph, dj_tree& tree, st
  *
  * This is commonly referred to as the "two-finger" intersection algorithm
  * 
- * @param b1 The DFS index (postorder) of the first block
- * @param b2 The DFS index (postorder) of the second block
+ * @param finger1 The DFS index (postorder) of the first block
+ * @param finger2 The DFS index (postorder) of the second block
  * @param idoms The current immediate dominators
  * 
  * @return The DFS index of the common dominator
  * 
  * @note REFERENCE: Cooper, K. D., Harvey, T. J., & Kennedy, K. (2001). A simple, fast dominance algorithm. Software Practice & Experience, 4(1-10), 1-8.
  */
-int intersect_idom(int b1, int b2, const std::vector<std::uint16_t>& idoms) {
-    int finger1 = b1;
-    int finger2 = b2;
-    
+int intersect_idom(int finger1, int finger2, const std::vector<std::uint16_t>& idoms) {
     while (finger1 != finger2) {
         while (finger1 < finger2) finger1 = idoms[finger1];
         while (finger2 < finger1) finger2 = idoms[finger2];
@@ -260,10 +264,10 @@ int intersect_idom(int b1, int b2, const std::vector<std::uint16_t>& idoms) {
 }
 
 
-std::vector<std::uint16_t> build_idoms(cfg& graph) {
+[[nodiscard]] std::vector<std::uint16_t> build_idoms(cfg& graph) {
     if (!graph.dfs_run) dfs(graph);
 
-    int N = graph.blocks.size();
+    const int N = graph.blocks.size();
     kong_log(LOG_LEVEL_INFO, "N : %d", N);
     
     std::vector<std::uint16_t> idoms(N, 0xFFFF);
@@ -274,13 +278,6 @@ std::vector<std::uint16_t> build_idoms(cfg& graph) {
     bool changed = true;
     while (changed) {
         changed = false;
-
-#ifndef NDEBUG
-        kong_log(LOG_LEVEL_INFO, "\nIdom While Building (Temporary Set): ");
-        for(int i = 0 ; i<idoms.size(); i++){
-            kong_log(LOG_LEVEL_INFO, "idom(%d) = %d", i, idoms[i]);
-        }
-#endif
 
         for (int i = N - 2; i >= 0; i--) {
             cfg_block* b = graph.PO[i];
@@ -314,10 +311,9 @@ std::vector<std::uint16_t> build_idoms(cfg& graph) {
 }
 
 
-
 std::vector<std::uint16_t> normalize_IDOM(cfg& graph, std::vector<std::uint16_t>& IDOMs){
-    int offset = graph.entry->id;
-    int N = graph.blocks.size();
+    const int offset = graph.entry->id;
+    const int N = graph.blocks.size();
 
     // This will hold IDOMs indexed by the original block->id
     std::vector<std::uint16_t> idoms_by_id(N);
@@ -329,11 +325,11 @@ std::vector<std::uint16_t> normalize_IDOM(cfg& graph, std::vector<std::uint16_t>
         // b->dfs_num is the index used in the build_idoms result
         std::uint16_t idom_dfs_idx = IDOMs[b->dfs_num];
 
-        // Map that DFS index back to a real block ID
+        // Map DFS index back to the real block ID
         // The block whose dfs_num is idom_dfs_idx is graph.PO[idom_dfs_idx]
         std::uint16_t idom_real_id = graph.PO[idom_dfs_idx]->id;
 
-        // Store it in our normalized vector at the block's own ID index
+        // Store it in normalized vector at the block's own ID index
         idoms_by_id[b->id - offset] = idom_real_id;
     }
 

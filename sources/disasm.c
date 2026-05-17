@@ -252,6 +252,35 @@ static void write_functions(void) {
 			case OPCODE_BLOCK_END:
 				kong_log(LOG_LEVEL_INFO, "BLOCK_END [start_id: $%zu, end_id: $%zu]", o->op_block.start_id, o->op_block.end_id);
 				break;
+			case OPCODE_PHI:
+				char buffer[1024];
+
+				int offset = snprintf(
+					buffer,
+					sizeof(buffer),
+					"$%zu = PHI(", o->op_phi.to
+				);
+
+				for(uint8_t i = 0; i < o->op_phi.preds_size; i++) {
+					offset += snprintf(
+						buffer + offset,
+						sizeof(buffer) - offset,
+						"%s$%zu", (i == 0 ? "" : ", "), o->op_phi.preds[i]
+					);
+				}
+
+				snprintf(
+					buffer + offset,
+					sizeof(buffer) - offset,
+					")"
+				);
+
+				kong_log(LOG_LEVEL_INFO, "%s", buffer);
+
+				break;
+			case OPCODE_ASSIGN:
+				kong_log(LOG_LEVEL_INFO, "$%zu = $%zu", o->op_assign.to, o->op_assign.from);
+				break;
 			default: {
 				debug_context context = KONG_INIT_ZERO;
 				error(context, "Unknown opcode");

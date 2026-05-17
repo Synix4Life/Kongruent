@@ -85,7 +85,9 @@ typedef enum opcode_type {
 	OPCODE_WHILE_END,
 	OPCODE_WHILE_BODY,
 	OPCODE_BLOCK_START,
-	OPCODE_BLOCK_END
+	OPCODE_BLOCK_END,
+	OPCODE_PHI,
+	OPCODE_ASSIGN
 } opcode_type;
 
 typedef struct opcode {
@@ -175,6 +177,15 @@ typedef struct opcode {
 		struct {
 			uint8_t nothing;
 		} op_nothing;
+		struct {
+			uint64_t to;
+			uint64_t* preds;
+			uint8_t preds_size;
+		} op_phi;
+		struct {
+			uint64_t to;
+			uint64_t from;
+		} op_assign;
 	};
 } opcode;
 
@@ -192,6 +203,8 @@ struct statement;
 void compile_function_block(opcodes *code, struct statement *block);
 
 variable allocate_variable(type_ref type, variable_kind kind);
+
+uint64_t get_next_variable_id();
 
 #define OP_SIZE(op, opmember) offsetof(opcode, opmember) + sizeof(op.opmember)
 

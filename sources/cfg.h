@@ -1,12 +1,13 @@
 #pragma once
 
-#include <vector>
 #include <cstdint>
-#include <string>
 #include <list>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "compiler.h"
+#include "functions.h"
 
 
 /**
@@ -23,7 +24,7 @@ enum Identifier {
  * Block of straight-line instructions
  */
 struct cfg_block{
-    std::uint16_t id;
+    const std::uint16_t id;
 
     std::vector<opcode*> instructions;
 
@@ -33,6 +34,7 @@ struct cfg_block{
     std::vector<cfg_block*> pred;
 
     std::uint16_t dfs_num = 0xFFFF;
+    size_t upper_offset_idx;
 
     cfg_block(std::uint16_t id) : id(id) {}
 };
@@ -49,6 +51,7 @@ struct cfg_block{
 struct cfg{
     std::vector<std::unique_ptr<cfg_block>> blocks;
 
+    /** @note: By design, entry has the lowest ID in the CFG, although it can be anywhere in BLOCKS */
     cfg_block* entry;
 
     std::vector<cfg_block*> PO;
@@ -56,6 +59,7 @@ struct cfg{
     std::uint8_t num_edges = 0;
 
     std::string name;
+    function_id fun_idx;
 
     bool dfs_run = false;
 };
@@ -67,4 +71,4 @@ struct cfg{
  * 
  * Time complexity: O(S) with S = Number of statements
  */
-std::vector<cfg> make_cfgs();
+[[nodiscard]] std::vector<cfg> make_cfgs();

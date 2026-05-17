@@ -86,6 +86,14 @@ struct dj_tree{
 
 
 /**
+ * Method that reset the dominator_block attributes of a given DJ-graph
+ * 
+ * @param tree The DJ tree
+ */
+void reset_attributes(dj_tree& tree) noexcept;
+
+
+/**
  * Method to construct the DJ_tree. This method constructs the graph, but DOES NOT yet run the algorithm. 
  * The algorithm of Sreedhar and Gao can/ needs to be run on multiple data sets. Therefore, this just produces the tree.
  * 
@@ -96,15 +104,7 @@ struct dj_tree{
  * 
  * @throws [Internal Error]: Runtime Exception -> If the graph has no basic blocks
  */
-dj_tree build_dj(cfg& graph, std::vector<std::uint16_t>& IDOMs);
-
-
-/**
- * Method that reset the dominator_block attributes of a given DJ-graph
- * 
- * @param tree The DJ tree
- */
-void reset_attributes(dj_tree& tree);
+[[nodiscard]] dj_tree build_dj(cfg& graph, std::vector<std::uint16_t>& IDOMs);
 
 
 
@@ -144,7 +144,7 @@ struct PiggyBank {
  * 
  * @note REFERENCE: Sreedhar, V. C., & Gao, G. R. (1995). A linear time algorithm for placing ϕ-nodes. Proceedings of the 22nd ACM SIGPLAN-SIGACT symposium on Principles of programming languages - POPL ’95, 62–73. https://doi.org/10.1145/199448.199464
  */
-std::vector<std::uint16_t> calculate_phi_placement(cfg& graph, dj_tree& tree, std::vector<std::uint16_t> N_alpha);
+[[nodiscard]] std::vector<std::uint16_t> calculate_phi_placement(cfg& graph, dj_tree& tree, std::vector<std::uint16_t> N_alpha);
 
 
 
@@ -162,7 +162,7 @@ std::vector<std::uint16_t> calculate_phi_placement(cfg& graph, dj_tree& tree, st
  * @note REFERENCE: Cooper, K. D., Harvey, T. J., & Kennedy, K. (2001). A simple, fast dominance algorithm. Software Practice & Experience, 4(1-10), 1-8.
  * @note The return vectors structure is: RET[dfs_num] <= IDOM[dfs_num] . This means that the identification is purely done via the cfg_block internal numbers, NOT their ID's
  */
-std::vector<std::uint16_t> build_idoms(cfg& graph);
+[[nodiscard]] std::vector<std::uint16_t> build_idoms(cfg& graph);
 
 
 /**

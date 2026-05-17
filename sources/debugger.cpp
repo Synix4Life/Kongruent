@@ -1,8 +1,10 @@
 #include "debugger.h"
 
 #include <iostream>
+#include <unordered_map>
 
 #include "cfg.h"
+#include "def_use.h"
 #include "dominator_tree.h"
 #include "errors.h"
 #include "log.h"
@@ -59,6 +61,8 @@ const char* get_opcode_name(const opcode_type type) {
         case OPCODE_WHILE_BODY:                 	return "OPCODE_WHILE_BODY";
         case OPCODE_BLOCK_START:                	return "OPCODE_BLOCK_START";
         case OPCODE_BLOCK_END:                  	return "OPCODE_BLOCK_END";
+        case OPCODE_PHI:                  	        return "OPCODE_PHI";
+        case OPCODE_ASSIGN:                         return "OPCODE_ASSIGN";
         
         default:                                	return "UNKNOWN_OPCODE";
     }
@@ -79,13 +83,27 @@ const char* get_opcode_name(const opcode_type type) {
 }
 
 
+[[nodiscard]] const std::string make_string(const std::vector<std::uint64_t> ids) noexcept{
+	if (ids.empty()) return "";
+
+    std::string result = "( ";
+    for (size_t i = 0; i < ids.size(); ++i) {
+        result += std::to_string(ids[i]);
+		if (i < ids.size() - 1) {
+            result += ", ";
+        }
+    }
+    result += " )";
+    return result;
+}
+
+
 [[nodiscard]] std::string make_instruction_string(const std::vector<opcode_type>& types) {
     if (types.empty()) return "[]";
 
     std::string result = "[";
     for (size_t i = 0; i < types.size(); ++i) {
         result += get_opcode_name(types[i]);
-        
         if (i < types.size() - 1) {
             result += ", ";
         }
@@ -110,22 +128,54 @@ const char* get_edge_type_name(const EdgeType type) {
 
 
 /* ================================================================ */
+/* ===================== STORE/ USE DEBUGGER ====================== */
+/* ================================================================ */
+
+void store_use_debugger(const std::vector<def_use_map>& map) noexcept{
+    for(const auto& m : map){
+        if(m.type == STORE){
+            kong_log(LOG_LEVEL_INFO, "STORE: %d in %d -> { %d }", m.id, m.bb, m.replacement_id);
+        }
+        if(m.type == ASSIGN){
+            kong_log(LOG_LEVEL_INFO, "ASSIGN: %d in %d -> { %d } (%s)", m.id, m.bb, m.replacement_id, get_opcode_name(m.OP));
+        }
+        if(m.type == USE){
+            kong_log(LOG_LEVEL_INFO, "USE: %d in %d -> (%s) [ %d ]", m.id, m.bb, get_opcode_name(m.OP), m.replacement_id == NULL ? -1 : m.replacement_id);
+        }
+    }
+}
+
+
+
+/* ================================================================ */
+/* ==================== PHI FUNCTION DEBUGGER ===================== */
+/* ================================================================ */
+
+void debug_phi(const std::vector<phi>& phis) noexcept{
+    for(const auto& p: phis){
+        kong_log(LOG_LEVEL_INFO, "PHI: %d in %d from %d -> (%s)", p.id, p.bb_id, p.origin, make_string(p.elems).c_str());
+    }
+}
+
+
+
+/* ================================================================ */
 /* ====================== DOMINATOR DEBUGGER ====================== */
 /* ================================================================ */
 
-void block_id_rpo_map(cfg& graph){
-    for(auto& block: graph.blocks){
+void block_id_rpo_map(const cfg& graph) noexcept{
+    for(const auto& block: graph.blocks){
         kong_log(LOG_LEVEL_INFO, "BLOCK: ID[%d] has DFS_NUM[%d]", block.get()->id, block.get()->dfs_num);
     }
 }
 
 
-void debug_DJ(dj_tree tree){
+void debug_DJ(const dj_tree& tree) noexcept{
     kong_log(LOG_LEVEL_INFO, "% ============================== %");
 	kong_log(LOG_LEVEL_INFO, "FUNC %s -> DJ-TREE", tree.name.c_str());
 	kong_log(LOG_LEVEL_INFO, "% ============================== %\n");
 
-    for(auto& block : tree.blocks){
+    for(const auto& block : tree.blocks){
         kong_log(LOG_LEVEL_INFO, "BLOCK %d at level %d", block.ref_id, block.level);
         for(auto& edge : block.edges){
             kong_log(LOG_LEVEL_INFO, "\t %s(%d->%d)", get_edge_type_name(edge.type), block.ref_id, edge.dest_id);
@@ -134,10 +184,10 @@ void debug_DJ(dj_tree tree){
 }
 
 
-void debug_IDF_out(std::vector<std::uint16_t>& N_alpha, std::vector<std::uint16_t>& IDF){
+void debug_IDF_out(const std::uint32_t id, const std::vector<std::uint16_t>& N_alpha, const std::vector<std::uint16_t>& IDF) noexcept{
     kong_log(LOG_LEVEL_INFO, "\n---------------");
-	kong_log(LOG_LEVEL_INFO, "IDF CALCULATION");
-	kong_log(LOG_LEVEL_INFO, "---------------\n");
+	kong_log(LOG_LEVEL_INFO, "IDF CALCULATION (var(%d))", id);
+	kong_log(LOG_LEVEL_INFO, "---------------");
 
     kong_log(LOG_LEVEL_INFO, "N_alpha { %s }\n", make_string(N_alpha).c_str());
 
@@ -150,13 +200,13 @@ void debug_IDF_out(std::vector<std::uint16_t>& N_alpha, std::vector<std::uint16_
 /* ========================= CFG DEBUGGER ========================= */
 /* ================================================================ */
 
-void debug_cfgs(const std::vector<cfg>& graphs){
+void debug_cfgs(const std::vector<cfg>& graphs) noexcept{
 	for(int i=0; i<graphs.size(); ++i){
 		
 		const cfg& curr = graphs[i];
 
 		kong_log(LOG_LEVEL_INFO, "% ============================== %");
-		kong_log(LOG_LEVEL_INFO, "FUNC %s, nums_edges %d", curr.name.c_str(), curr.num_edges);
+		kong_log(LOG_LEVEL_INFO, "FUNC %s (id(%d)), nums_edges %d", curr.name.c_str(), curr.fun_idx, curr.num_edges);
 		kong_log(LOG_LEVEL_INFO, "% ============================== %\n");
 
 		std::vector<uint16_t> store;

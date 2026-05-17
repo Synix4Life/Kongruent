@@ -1,17 +1,25 @@
 #include "cfg.h"
 
-#include <stack>
-#include <vector>
+#include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <stack>
 #include <string>
+#include <vector>
 
-#include "functions.h"
 #include "compiler.h"
-#include "log.h"
 #include "errors.h"
+#include "functions.h"
+#include "global.h"
+#include "log.h"
 
 
+/**
+ * Link to blocks -> Create an edge
+ * 
+ * @param from The source node
+ * @param to The target node
+ */
 void link_blocks(cfg_block* from, cfg_block* to){
 	if (!from || !to) return;
 	from->succ.push_back(to);
@@ -19,7 +27,7 @@ void link_blocks(cfg_block* from, cfg_block* to){
 }
 
 
-std::vector<cfg> make_cfgs(){
+[[nodiscard]] std::vector<cfg> make_cfgs(){
     std::vector<cfg> graphs;
 	std::uint16_t id = 0;
 
@@ -36,6 +44,7 @@ std::vector<cfg> make_cfgs(){
 
         cfg control_graph;
 		control_graph.name = get_name(f->name);
+		control_graph.fun_idx = i;
 
         uint8_t *data = f->code.o;
 		size_t   size = f->code.size;
@@ -58,6 +67,7 @@ std::vector<cfg> make_cfgs(){
 					curr->instructions.push_back(o);
 
 					cfg_block* ptr = curr.get();
+					curr.get()->upper_offset_idx = index;
 					control_graph.blocks.push_back(std::move(curr));
 
 					curr = std::make_unique<cfg_block>(id++);
@@ -68,6 +78,7 @@ std::vector<cfg> make_cfgs(){
                     break;
 				}
 				case OPCODE_BLOCK_START: {
+					curr.get()->upper_offset_idx = index;
 					stack.push(std::make_tuple(std::move(curr), ident));
 					
 					curr = std::make_unique<cfg_block>(id++);
@@ -81,6 +92,7 @@ std::vector<cfg> make_cfgs(){
 				case OPCODE_BLOCK_END: {
 					curr->instructions.push_back(o);
 
+					curr.get()->upper_offset_idx = index;
 					std::unique_ptr<cfg_block> created = std::move(curr);
 					curr = std::make_unique<cfg_block>(id++);
 
@@ -91,10 +103,10 @@ std::vector<cfg> make_cfgs(){
 					else if(parent_ident == WHILE){
 						link_blocks(created.get(), parent.get());
 					}
-					//else{
-					//	debug_context context = {0};
-					//	error(context, "[ERROR] OPCODE_BLOCK_END without stacked parent-identifier in %s", control_graph.name.c_str());
-					//}
+					else{
+						debug_context context = KONG_INIT_ZERO;
+						error(context, "[ERROR] OPCODE_BLOCK_END without stacked parent-identifier in %s", control_graph.name.c_str());
+					}
 
 					link_blocks(parent.get(), curr.get());
 
@@ -114,12 +126,22 @@ std::vector<cfg> make_cfgs(){
 		}
 
 		if(!stack.empty()){
-			debug_context context = {0};
+			debug_context context = KONG_INIT_ZERO;
 			error(context, "[ERROR] CFG-stack isn't empty: %s -> %d block(s) still stacked", control_graph.name.c_str(), stack.size());
 		}
 
-		if(!curr->instructions.empty()) 
+		if(!curr->instructions.empty()) {
+			curr.get()->upper_offset_idx = index;
 			control_graph.blocks.push_back(std::move(curr));
+		}
+
+		std::sort(
+			control_graph.blocks.begin(), 
+			control_graph.blocks.end(), 
+			[](const std::unique_ptr<cfg_block>& a, const std::unique_ptr<cfg_block>& b)
+			
+		{ return a->id < b->id; }
+		);
 
 		graphs.push_back(std::move(control_graph));
 	}

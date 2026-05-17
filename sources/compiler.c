@@ -82,6 +82,8 @@ const char all_names[1024 * 1024] = KONG_INIT_ZERO;
 
 static uint64_t next_variable_id = 1;
 
+uint64_t get_next_variable_id(){ return next_variable_id; }
+
 variable all_variables[1024 * 1024];
 
 variable allocate_variable(type_ref type, variable_kind kind) {
