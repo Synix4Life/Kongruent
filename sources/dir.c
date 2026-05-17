@@ -40,7 +40,19 @@ __declspec(dllimport) int __stdcall FindClose(void *hFindFile);
 
 __declspec(dllimport) unsigned long __stdcall GetLastError(void);
 
+typedef int BOOL;
+#define FALSE 0
+#define TRUE  1
+
+typedef const char *LPCSTR, *PCSTR;
+
+__declspec(dllimport) BOOL __stdcall PathFileExistsA(_In_ LPCSTR pszPath);
+
 #define INVALID_HANDLE_VALUE ((void *)(__int64)-1)
+
+bool dir_exists(const char *dirname) {
+	return PathFileExistsA(dirname) == TRUE;
+}
 
 directory open_dir(const char *dirname) {
 	char pattern[1024];
@@ -83,6 +95,16 @@ void close_dir(directory *dir) {
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+
+bool dir_exists(const char *dirname) {
+	struct stat dir_info;
+
+	if (stat(dirname, &dir_info) != 0) {
+		return false;
+	}
+
+	return S_ISDIR(dir_info.st_mode) != 0;
+}
 
 directory open_dir(const char *dirname) {
 	directory dir;
