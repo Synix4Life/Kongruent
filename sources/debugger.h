@@ -24,7 +24,7 @@ const char* get_opcode_name(const opcode_type type);
  * Prints the store Def-use map of a function
  * @param map The def-use map
  */
-void store_use_debugger(const std::vector<def_use_map>& map) noexcept;
+void store_use_debugger(const cfg& graph, const std::vector<def_use_map>& map) noexcept;
 
 
 

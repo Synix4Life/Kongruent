@@ -131,7 +131,10 @@ const char* get_edge_type_name(const EdgeType type) {
 /* ===================== STORE/ USE DEBUGGER ====================== */
 /* ================================================================ */
 
-void store_use_debugger(const std::vector<def_use_map>& map) noexcept{
+void store_use_debugger(const cfg& graph, const std::vector<def_use_map>& map) noexcept{
+    kong_log(LOG_LEVEL_INFO, "% ============================== %");
+    kong_log(LOG_LEVEL_INFO, " %_ FUNC -> %s", graph.name.c_str());
+    kong_log(LOG_LEVEL_INFO, "% ============================== %\n");
     for(const auto& m : map){
         if(m.type == STORE){
             kong_log(LOG_LEVEL_INFO, "STORE: %d in %d -> { %d }", m.id, m.bb, m.replacement_id);

@@ -100,10 +100,7 @@ inline void static_single_assignment_form(uint64_t sequence_id){
         auto def_use = discover_def_use(f, sequence_id);
 
 #ifndef NDEBUG
-        kong_log(LOG_LEVEL_INFO, "% ============================== %");
-		kong_log(LOG_LEVEL_INFO, " % FUNC -> %s", f.name.c_str());
-		kong_log(LOG_LEVEL_INFO, "% ============================== %\n");
-        store_use_debugger(def_use);
+        store_use_debugger(f, def_use);
 #endif
 
 
@@ -136,7 +133,7 @@ inline void static_single_assignment_form(uint64_t sequence_id){
         debug_phi(phi);
 	
     	kong_log(LOG_LEVEL_INFO, "\nPost-rewriting Store-Use-Map Debugger\n");
-	    store_use_debugger(def_use);
+	    store_use_debugger(f, def_use);
 #endif
 
 

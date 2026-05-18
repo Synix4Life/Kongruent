@@ -302,6 +302,18 @@ void cstyle_write_opcode(char *code, size_t *offset, opcode *o, type_string_func
 		*offset += sprintf(&code[*offset], "}\n");
 		break;
 	}
+	case OPCODE_PHI: {
+		indent(code, offset, *indentation);
+		*offset += sprintf(&code[*offset], "_%" PRIu64 " = PHI(", o->op_phi.to);
+		for(int i = 0; i < o->op_phi.preds_size; ++i){
+			*offset += sprintf(&code[*offset], "_%" PRIu64, o->op_phi.preds[i]);
+			if(i < o->op_phi.preds_size - 1){
+				*offset += sprintf(&code[*offset], ", ");
+			}
+		}
+		*offset += sprintf(&code[*offset], ");");
+		break;
+	}
 	default: {
 		debug_context context = KONG_INIT_ZERO;
 		error(context, "Unknown opcode");

@@ -14,15 +14,18 @@
 [[nodiscard]] std::unordered_map<std::uint32_t, std::vector<std::uint16_t>> discover_store(const cfg& graph){
     std::unordered_map<std::uint32_t, std::vector<std::uint16_t>> store = {};
 
-    std::uint32_t id = 0;
-
     for (const auto& block_ptr : graph.blocks) {
         const cfg_block* block = block_ptr.get();
         const std::uint16_t bb_id = block->id;
         for (auto* o : block->instructions) {
             switch (o->type){
-                case OPCODE_STORE_VARIABLE: // TODO: Variable kind check
-                    store[o->op_store_var.to.index].push_back(bb_id);
+                case OPCODE_STORE_VARIABLE:
+                case OPCODE_SUB_AND_STORE_VARIABLE:
+                case OPCODE_ADD_AND_STORE_VARIABLE:
+                case OPCODE_DIVIDE_AND_STORE_VARIABLE:
+                case OPCODE_MULTIPLY_AND_STORE_VARIABLE:
+                    if(o->op_store_var.to.kind != VARIABLE_GLOBAL)
+                        store[o->op_store_var.to.index].push_back(bb_id);
                     break;
                 default:
                     break;
@@ -43,10 +46,19 @@
 
         for (auto* o : block->instructions) {
             switch (o->type){
-                case OPCODE_STORE_VARIABLE: // TODO: Variable kind check              
+                case OPCODE_STORE_VARIABLE:
+                case OPCODE_SUB_AND_STORE_VARIABLE:
+                case OPCODE_ADD_AND_STORE_VARIABLE:
+                case OPCODE_DIVIDE_AND_STORE_VARIABLE:
+                case OPCODE_MULTIPLY_AND_STORE_VARIABLE:
                     if(store.find(o->op_store_var.from.index) != store.end())
                         map.push_back(def_use_map(o->op_store_var.from.index, USE, bb_id, NULL, o->type));
-                    map.push_back(def_use_map(o->op_store_var.to.index, STORE, bb_id, var_id++, o->type));
+                    if(o->op_store_var.to.kind != VARIABLE_GLOBAL)
+                        map.push_back(def_use_map(o->op_store_var.to.index, STORE, bb_id, var_id++, o->type));
+                    break;
+                case OPCODE_LOAD_ACCESS_LIST:
+                    if(store.find(o->op_load_access_list.to.index) != store.end())
+                        map.push_back(def_use_map(o->op_load_access_list.to.index, ASSIGN, bb_id, var_id++, o->type));
                     break;
                 case OPCODE_VAR:
                     if(store.find(o->op_var.var.index) != store.end())
@@ -64,18 +76,17 @@
                     if(store.find(o->op_negate.to.index) != store.end())
                         map.push_back(def_use_map(o->op_negate.to.index, ASSIGN, bb_id, var_id++, o->type));
                     break;
-                /*case OPCODE_SUB_AND_STORE_VARIABLE:
-                case OPCODE_ADD_AND_STORE_VARIABLE:
-                case OPCODE_DIVIDE_AND_STORE_VARIABLE:
-                case OPCODE_MULTIPLY_AND_STORE_VARIABLE:*/
                 case OPCODE_RETURN:
                     if(store.find(o->op_return.var.index) != store.end()){
                         map.push_back(def_use_map(o->op_return.var.index, USE, bb_id, NULL, o->type));
                     }
                     break;
-                case OPCODE_DISCARD:
-                    break;
                 case OPCODE_CALL:
+                    for(int i = 0; i < o->op_call.parameters_size; ++i){
+                        if(store.find(o->op_call.parameters[i].index) != store.end()){
+                            map.push_back(def_use_map(o->op_call.parameters[i].index, USE, bb_id, NULL, o->type));
+                        }
+                    }
                     break;
                 case OPCODE_MULTIPLY:
                 case OPCODE_DIVIDE:

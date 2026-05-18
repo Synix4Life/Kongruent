@@ -329,12 +329,22 @@ void construct_SSA(cfg& graph, std::vector<def_use_map>& map, std::vector<phi>& 
         
         switch (o->type) {
             case OPCODE_STORE_VARIABLE:
+            case OPCODE_SUB_AND_STORE_VARIABLE:
+            case OPCODE_ADD_AND_STORE_VARIABLE:
+            case OPCODE_DIVIDE_AND_STORE_VARIABLE:
                 if(map[map_idx].type == USE && o->op_store_var.from.index == map[map_idx].id){
                     o->op_store_var.to.index = map[map_idx].replacement_id;
                     map_idx++;
                 }
                 if(map[map_idx].type == STORE && o->op_store_var.to.index == map[map_idx].id){
                     o->op_store_var.to.index = map[map_idx].replacement_id;
+                    map_idx++;
+                }
+                copy_opcode(o);
+                break;
+            case OPCODE_LOAD_ACCESS_LIST:
+                if(map[map_idx].type == STORE && o->op_load_access_list.to.index == map[map_idx].id){
+                    o->op_load_access_list.to.index = map[map_idx].replacement_id;
                     map_idx++;
                 }
                 copy_opcode(o);
@@ -372,6 +382,15 @@ void construct_SSA(cfg& graph, std::vector<def_use_map>& map, std::vector<phi>& 
                 if(map[map_idx].type == USE && o->op_return.var.index == map[map_idx].id){
                     o->op_return.var.index = map[map_idx].replacement_id;
                     map_idx++;
+                }
+                copy_opcode(o);
+                break;
+            case OPCODE_CALL:
+                for(int i = 0; i < o->op_call.parameters_size; ++i){
+                    if(map[map_idx].type == USE && o->op_call.parameters[i].index == map[map_idx].id){
+                        o->op_call.parameters[i].index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
                 }
                 copy_opcode(o);
                 break;
@@ -441,7 +460,7 @@ void construct_SSA(cfg& graph, std::vector<def_use_map>& map, std::vector<phi>& 
 	}
 
     if(phis.size() != 0){
-        kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] Phi list NOT empty after bytecode traversal!");
+        kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] Phi list NOT empty after bytecode traversal! -> fun(%s)", graph.name.c_str());
         exit(1);
     }
 
