@@ -8,6 +8,7 @@
 #include "debugger.h"
 
 
+
 /* ================================================================== */
 /* ================ PHI FUNCTION BUILD + USE REWRITE ================ */
 /* ================================================================== */
@@ -333,7 +334,7 @@ void construct_SSA(cfg& graph, std::vector<def_use_map>& map, std::vector<phi>& 
             case OPCODE_ADD_AND_STORE_VARIABLE:
             case OPCODE_DIVIDE_AND_STORE_VARIABLE:
                 if(map[map_idx].type == USE && o->op_store_var.from.index == map[map_idx].id){
-                    o->op_store_var.to.index = map[map_idx].replacement_id;
+                    o->op_store_var.from.index = map[map_idx].replacement_id;
                     map_idx++;
                 }
                 if(map[map_idx].type == STORE && o->op_store_var.to.index == map[map_idx].id){
@@ -343,10 +344,22 @@ void construct_SSA(cfg& graph, std::vector<def_use_map>& map, std::vector<phi>& 
                 copy_opcode(o);
                 break;
             case OPCODE_LOAD_ACCESS_LIST:
-                if(map[map_idx].type == STORE && o->op_load_access_list.to.index == map[map_idx].id){
+                if(map[map_idx].type == ASSIGN && o->op_load_access_list.to.index == map[map_idx].id){
                     o->op_load_access_list.to.index = map[map_idx].replacement_id;
                     map_idx++;
                 }
+                copy_opcode(o);
+                break;
+            case OPCODE_STORE_ACCESS_LIST:
+            case OPCODE_SUB_AND_STORE_ACCESS_LIST:
+            case OPCODE_ADD_AND_STORE_ACCESS_LIST:
+            case OPCODE_DIVIDE_AND_STORE_ACCESS_LIST:
+            case OPCODE_MULTIPLY_AND_STORE_ACCESS_LIST:
+                if(map[map_idx].type == USE && o->op_store_access_list.from.index == map[map_idx].id){
+                    o->op_store_access_list.from.index = map[map_idx].replacement_id;
+                    map_idx++;
+                }
+                // TODO: Structs etc using Access Lists for now kept in Memory
                 copy_opcode(o);
                 break;
             case OPCODE_VAR:
