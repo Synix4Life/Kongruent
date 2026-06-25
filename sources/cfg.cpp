@@ -130,10 +130,9 @@ void link_blocks(cfg_block* from, cfg_block* to){
 			error(context, "[ERROR] CFG-stack isn't empty: %s -> %d block(s) still stacked", control_graph.name.c_str(), stack.size());
 		}
 
-		if(!curr->instructions.empty()) {
-			curr.get()->upper_offset_idx = index;
-			control_graph.blocks.push_back(std::move(curr));
-		}
+		// Previously: Iff current instr empty
+		curr.get()->upper_offset_idx = index;
+		control_graph.blocks.push_back(std::move(curr));
 
 		std::sort(
 			control_graph.blocks.begin(), 

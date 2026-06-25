@@ -487,8 +487,6 @@ void copy_propagation(function_id id, std::unordered_map<uint64_t, uint64_t>& re
         return;
 	}
 
-    kong_log(LOG_LEVEL_INFO, "Copy propagation of %s", get_name(get_function(id)->name));
-
 	uint8_t *data = f->code.o;
 	size_t   size = f->code.size;
 

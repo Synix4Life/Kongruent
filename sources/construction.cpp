@@ -13,6 +13,8 @@
 /* ================ PHI FUNCTION BUILD + USE REWRITE ================ */
 /* ================================================================== */
 
+#define NO_DEFINITION_FOUND (-1)
+
 /**
  * A safe dominator parent fetch method
  * 
@@ -57,6 +59,7 @@ std::uint16_t get_dom_parent(
  * @param bb_id Basic block id
  * @param offset CFG numbering offset
  * @param tree DJ-tree
+ * @param graph CFG for entry-stopping
  * 
  * @return The phi-function parameter (variable ID)
  */
@@ -67,14 +70,16 @@ std::uint64_t get_param(
     >& map_,
     const std::uint16_t bb_id,
     const int offset,
-    dj_tree& tree
+    dj_tree& tree,
+    cfg& graph
 ){
+    if(bb_id == graph.entry->id) { return NO_DEFINITION_FOUND; }
     if(map_.find(bb_id) != map_.end()){
         return map_[bb_id];
     }
     // DT-Property: In general, a definition that goes to the block can only appear in the dom_parent or above
     auto parent_id = get_dom_parent(bb_id, offset, tree);
-    return get_param(map_, parent_id, offset, tree);
+    return get_param(map_, parent_id, offset, tree, graph);
 }
 
 
@@ -109,6 +114,7 @@ std::uint64_t get_from_phi(const std::vector<phi>& phis, const std::uint16_t tar
  * @param origin The phi's origin value
  * @param phis The phi-functions
  * @param tree DJ-tree
+ * @param graph CFG for entry-stopping
  */
 std::uint64_t get_recursive(
     std::unordered_map<
@@ -120,11 +126,13 @@ std::uint64_t get_recursive(
     const int offset,
     const std::uint32_t origin,
     std::vector<phi>& phis, 
-    dj_tree& tree
+    dj_tree& tree,
+    cfg& graph
 ){
+    if(bb_id == graph.entry->id) { return NO_DEFINITION_FOUND; }
     auto parent_id = get_dom_parent(bb_id, offset, tree);
     if(map_.find(parent_id) == map_.end()){ // Case 1
-        return get_recursive(map_, phi_indexing, parent_id, offset, origin, phis, tree);
+        return get_recursive(map_, phi_indexing, parent_id, offset, origin, phis, tree, graph);
     } else{
         if(std::find(phi_indexing.begin(), phi_indexing.end(), parent_id) == phi_indexing.end()) { // Case 4
             return map_[parent_id];
@@ -180,7 +188,8 @@ std::vector<phi> create_phi(cfg& graph, dj_tree& dj, std::vector<def_use_map>& m
             phi_indexing[id].push_back(val);
             
             for(auto pred: graph.blocks[val - offset].get()->pred){
-                p.elems.push_back(get_param(definition_map[id], pred->id, offset, dj));
+                auto param = get_param(definition_map[id], pred->id, offset, dj, graph);
+                if( param != NO_DEFINITION_FOUND ) { p.elems.push_back(param); }
             }
             
             phis.push_back(p);
@@ -208,10 +217,10 @@ std::vector<phi> create_phi(cfg& graph, dj_tree& dj, std::vector<def_use_map>& m
     for(auto& entry: map){
         if(entry.type == USE && entry.replacement_id == NULL){
             if(definition_map[entry.id].find(entry.bb) == definition_map[entry.id].end()){ // Case 1
-                entry.replacement_id = get_recursive(definition_map[entry.id], phi_indexing[entry.id], entry.bb, offset, entry.id, phis, dj);
+                entry.replacement_id = get_recursive(definition_map[entry.id], phi_indexing[entry.id], entry.bb, offset, entry.id, phis, dj, graph);
             } else{
                 if(std::find(phi_indexing[entry.id].begin(), phi_indexing[entry.id].end(), entry.bb) == phi_indexing[entry.id].end()) { // Case 4
-                    entry.replacement_id = get_recursive(definition_map[entry.id], phi_indexing[entry.id], entry.bb, offset, entry.id, phis, dj);
+                    entry.replacement_id = get_recursive(definition_map[entry.id], phi_indexing[entry.id], entry.bb, offset, entry.id, phis, dj, graph);
                 } else { // Case 2 + 3
                     entry.replacement_id = get_from_phi(phis, entry.bb, entry.id);
                 }
@@ -290,15 +299,18 @@ static void create_phi_opcode(const phi& p){
  * @param bb_idx The basic block currently starting with
  */
 void insert_phi(std::vector<phi>& phis, const std::uint16_t bb_idx){
-    int phi_idx = 0;
-    while(phi_idx < phis.size()){
-        if(phis[phi_idx].bb_id == bb_idx){
-            create_phi_opcode(phis[phi_idx]);
-            phis.erase(phis.begin() + phi_idx);
+    std::vector<phi> remaining;
+    remaining.reserve(phis.size());
+
+    for(const auto& p: phis){
+        if(p.bb_id == bb_idx){
+            create_phi_opcode(p);
         } else {
-            phi_idx ++;
+            remaining.push_back(p);
         }
     }
+
+    phis = std::move(remaining);
 }
 
 
@@ -311,171 +323,148 @@ void construct_SSA(cfg& graph, std::vector<def_use_map>& map, std::vector<phi>& 
 	uint8_t *data = f->code.o;
 	size_t   size = f->code.size;
 
+    int map_idx = 0;
 	new_opcode.size = 0;
 
-    int map_idx = 0;
-    std::uint16_t block_idx = graph.entry->id;
-
-    bool block_start = false;
-
-	size_t index = 0;
-	while (index < size) {
-        opcode *o = (opcode *)&data[index];
-
-        if(map_idx >= map.size()){
-            copy_opcode(o);
-            index += o->size;
-            continue;
-        }
-        
-        switch (o->type) {
-            case OPCODE_STORE_VARIABLE:
-            case OPCODE_SUB_AND_STORE_VARIABLE:
-            case OPCODE_ADD_AND_STORE_VARIABLE:
-            case OPCODE_DIVIDE_AND_STORE_VARIABLE:
-                if(map[map_idx].type == USE && o->op_store_var.from.index == map[map_idx].id){
-                    o->op_store_var.from.index = map[map_idx].replacement_id;
-                    map_idx++;
-                }
-                if(map[map_idx].type == STORE && o->op_store_var.to.index == map[map_idx].id){
-                    o->op_store_var.to.index = map[map_idx].replacement_id;
-                    map_idx++;
-                }
-                copy_opcode(o);
-                break;
-            case OPCODE_LOAD_ACCESS_LIST:
-                if(map[map_idx].type == ASSIGN && o->op_load_access_list.to.index == map[map_idx].id){
-                    o->op_load_access_list.to.index = map[map_idx].replacement_id;
-                    map_idx++;
-                }
-                copy_opcode(o);
-                break;
-            case OPCODE_STORE_ACCESS_LIST:
-            case OPCODE_SUB_AND_STORE_ACCESS_LIST:
-            case OPCODE_ADD_AND_STORE_ACCESS_LIST:
-            case OPCODE_DIVIDE_AND_STORE_ACCESS_LIST:
-            case OPCODE_MULTIPLY_AND_STORE_ACCESS_LIST:
-                if(map[map_idx].type == USE && o->op_store_access_list.from.index == map[map_idx].id){
-                    o->op_store_access_list.from.index = map[map_idx].replacement_id;
-                    map_idx++;
-                }
-                // TODO: Structs etc using Access Lists for now kept in Memory
-                copy_opcode(o);
-                break;
-            case OPCODE_VAR:
-                if(map[map_idx].type == ASSIGN && o->op_var.var.index == map[map_idx].id){
-                    o->op_var.var.index = map[map_idx].replacement_id;
-                    map_idx++;
-                }
-                copy_opcode(o);
-                break;
-            case OPCODE_NOT:
-                if(map[map_idx].type == USE && o->op_not.from.index == map[map_idx].id){
-                    o->op_not.from.index = map[map_idx].replacement_id;
-                    map_idx++;
-                }
-                if(map[map_idx].type == ASSIGN && o->op_not.to.index == map[map_idx].id){
-                    o->op_not.to.index = map[map_idx].replacement_id;
-                    map_idx++;
-                }
-                copy_opcode(o);
-                break;
-            case OPCODE_NEGATE:
-                if(map[map_idx].type == USE && o->op_negate.from.index == map[map_idx].id){
-                    o->op_negate.from.index = map[map_idx].replacement_id;
-                    map_idx++;
-                }
-                if(map[map_idx].type == ASSIGN && o->op_negate.to.index == map[map_idx].id){
-                    o->op_negate.to.index = map[map_idx].replacement_id;
-                    map_idx++;
-                }
-                copy_opcode(o);
-                break;
-            case OPCODE_RETURN:
-                if(map[map_idx].type == USE && o->op_return.var.index == map[map_idx].id){
-                    o->op_return.var.index = map[map_idx].replacement_id;
-                    map_idx++;
-                }
-                copy_opcode(o);
-                break;
-            case OPCODE_CALL:
-                for(int i = 0; i < o->op_call.parameters_size; ++i){
-                    if(map[map_idx].type == USE && o->op_call.parameters[i].index == map[map_idx].id){
-                        o->op_call.parameters[i].index = map[map_idx].replacement_id;
+    for(auto& basic_block : graph.blocks){
+        insert_phi(phis, basic_block.get()->id);
+        for (opcode* instr : basic_block.get()->instructions) {
+            switch (instr->type){
+                case OPCODE_STORE_VARIABLE:
+                case OPCODE_SUB_AND_STORE_VARIABLE:
+                case OPCODE_ADD_AND_STORE_VARIABLE:
+                case OPCODE_DIVIDE_AND_STORE_VARIABLE:
+                    if(map[map_idx].type == USE && instr->op_store_var.from.index == map[map_idx].id){
+                        instr->op_store_var.from.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
-                }
-                copy_opcode(o);
-                break;
-            case OPCODE_MULTIPLY:
-            case OPCODE_DIVIDE:
-            case OPCODE_MOD:
-            case OPCODE_ADD:
-            case OPCODE_SUB:
-            case OPCODE_EQUALS:
-            case OPCODE_NOT_EQUALS:
-            case OPCODE_GREATER:
-            case OPCODE_GREATER_EQUAL:
-            case OPCODE_LESS:
-            case OPCODE_LESS_EQUAL:
-            case OPCODE_AND:
-            case OPCODE_OR:
-            case OPCODE_BITWISE_XOR:
-            case OPCODE_BITWISE_AND:
-            case OPCODE_BITWISE_OR:
-            case OPCODE_LEFT_SHIFT:
-            case OPCODE_RIGHT_SHIFT:
-                if(map[map_idx].type == USE && o->op_binary.left.index == map[map_idx].id){
-                    o->op_binary.left.index = map[map_idx].replacement_id;
-                    map_idx++;
-                }
-                if(map[map_idx].type == USE && o->op_binary.right.index == map[map_idx].id){
-                    o->op_binary.right.index = map[map_idx].replacement_id;
-                    map_idx++;
-                }
-                if(map[map_idx].type == ASSIGN && o->op_binary.result.index == map[map_idx].id){
-                    o->op_binary.result.index = map[map_idx].replacement_id;
-                    map_idx++;
-                }
-                copy_opcode(o);
-                break;
-            case OPCODE_IF:
-                if(map[map_idx].type == USE && o->op_if.condition.index == map[map_idx].id){
-                    o->op_if.condition.index = map[map_idx].replacement_id;
-                    map_idx++;
-                }
-                copy_opcode(o);
-                break;
-            case OPCODE_WHILE_CONDITION:
-                if(map[map_idx].type == USE && o->op_while.condition.index == map[map_idx].id){
-                    o->op_while.condition.index = map[map_idx].replacement_id;
-                    map_idx++;
-                }
-                copy_opcode(o);
-                break;
-    		default:
-	    		copy_opcode(o);
-		    	break;
-		}
-
-		index += o->size;
-
-        // Handle Phi
-        if(block_start){
-            block_start = false;
-            insert_phi(phis, block_idx);
+                    if(map[map_idx].type == STORE && instr->op_store_var.to.index == map[map_idx].id){
+                        instr->op_store_var.to.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
+                    copy_opcode(instr);
+                    break;
+                case OPCODE_LOAD_ACCESS_LIST:
+                    if(map[map_idx].type == ASSIGN && instr->op_load_access_list.to.index == map[map_idx].id){
+                        instr->op_load_access_list.to.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
+                    copy_opcode(instr);
+                    break;
+                case OPCODE_STORE_ACCESS_LIST:
+                case OPCODE_SUB_AND_STORE_ACCESS_LIST:
+                case OPCODE_ADD_AND_STORE_ACCESS_LIST:
+                case OPCODE_DIVIDE_AND_STORE_ACCESS_LIST:
+                case OPCODE_MULTIPLY_AND_STORE_ACCESS_LIST:
+                    if(map[map_idx].type == USE && instr->op_store_access_list.from.index == map[map_idx].id){
+                        instr->op_store_access_list.from.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
+                    // TODO: Structs etc using Access Lists for now kept in Memory
+                    copy_opcode(instr);
+                    break;
+                case OPCODE_VAR:
+                    if(map[map_idx].type == ASSIGN && instr->op_var.var.index == map[map_idx].id){
+                        instr->op_var.var.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
+                    copy_opcode(instr);
+                    break;
+                case OPCODE_NOT:
+                    if(map[map_idx].type == USE && instr->op_not.from.index == map[map_idx].id){
+                        instr->op_not.from.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
+                    if(map[map_idx].type == ASSIGN && instr->op_not.to.index == map[map_idx].id){
+                        instr->op_not.to.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
+                    copy_opcode(instr);
+                    break;
+                case OPCODE_NEGATE:
+                    if(map[map_idx].type == USE && instr->op_negate.from.index == map[map_idx].id){
+                        instr->op_negate.from.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
+                    if(map[map_idx].type == ASSIGN && instr->op_negate.to.index == map[map_idx].id){
+                        instr->op_negate.to.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
+                    copy_opcode(instr);
+                    break;
+                case OPCODE_RETURN:
+                    if(map[map_idx].type == USE && instr->op_return.var.index == map[map_idx].id){
+                        instr->op_return.var.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
+                    copy_opcode(instr);
+                    break;
+                case OPCODE_CALL:
+                    for(int i = 0; i < instr->op_call.parameters_size; ++i){
+                        if(map[map_idx].type == USE && instr->op_call.parameters[i].index == map[map_idx].id){
+                            instr->op_call.parameters[i].index = map[map_idx].replacement_id;
+                            map_idx++;
+                        }
+                    }
+                    copy_opcode(instr);
+                    break;
+                case OPCODE_MULTIPLY:
+                case OPCODE_DIVIDE:
+                case OPCODE_MOD:
+                case OPCODE_ADD:
+                case OPCODE_SUB:
+                case OPCODE_EQUALS:
+                case OPCODE_NOT_EQUALS:
+                case OPCODE_GREATER:
+                case OPCODE_GREATER_EQUAL:
+                case OPCODE_LESS:
+                case OPCODE_LESS_EQUAL:
+                case OPCODE_AND:
+                case OPCODE_OR:
+                case OPCODE_BITWISE_XOR:
+                case OPCODE_BITWISE_AND:
+                case OPCODE_BITWISE_OR:
+                case OPCODE_LEFT_SHIFT:
+                case OPCODE_RIGHT_SHIFT:
+                    if(map[map_idx].type == USE && instr->op_binary.left.index == map[map_idx].id){
+                        instr->op_binary.left.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
+                    if(map[map_idx].type == USE && instr->op_binary.right.index == map[map_idx].id){
+                        instr->op_binary.right.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
+                    if(map[map_idx].type == ASSIGN && instr->op_binary.result.index == map[map_idx].id){
+                        instr->op_binary.result.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
+                    copy_opcode(instr);
+                    break;
+                case OPCODE_IF:
+                    if(map[map_idx].type == USE && instr->op_if.condition.index == map[map_idx].id){
+                        instr->op_if.condition.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
+                    copy_opcode(instr);
+                    break;
+                case OPCODE_WHILE_CONDITION:
+                    if(map[map_idx].type == USE && instr->op_while.condition.index == map[map_idx].id){
+                        instr->op_while.condition.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
+                    copy_opcode(instr);
+                    break;
+                default:
+                    copy_opcode(instr);
+                    break;
+            }
         }
-        
-        if(index >= graph.blocks[block_idx - graph.entry->id].get()->upper_offset_idx){
-            block_start = true;
-            block_idx ++;
-        }
-	}
+    }
 
     if(phis.size() != 0){
         kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] Phi list NOT empty after bytecode traversal! -> fun(%s)", graph.name.c_str());
         exit(1);
     }
 
-	f->code = new_opcode;
+    f->code = new_opcode;
 }

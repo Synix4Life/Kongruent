@@ -58,6 +58,10 @@ inline void static_single_assignment_form(uint64_t sequence_id){
     std::vector<dj_tree> DJ_TREES;
 
     for(auto& f: graphs){
+
+#ifndef NDEBUG
+        kong_log(LOG_LEVEL_INFO, "\n ==================== %s ====================\n ", f.name.c_str());
+#endif
 	    dfs(f);
 		
         auto res = build_idoms(f);
