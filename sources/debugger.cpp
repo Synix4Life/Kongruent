@@ -2,12 +2,17 @@
 
 #include <iostream>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "cfg.h"
 #include "def_use.h"
 #include "dominator_tree.h"
 #include "errors.h"
+#include "liveness.h"
 #include "log.h"
+
+
+using namespace ::ssa::recompilation;
 
 
 /* ================================================================ */
@@ -98,7 +103,17 @@ const char* get_opcode_name(const opcode_type type) {
 }
 
 
-[[nodiscard]] std::string make_instruction_string(const std::vector<opcode_type>& types) {
+[[nodiscard]] const std::string make_string(const std::unordered_set<std::uint64_t> vals) noexcept{
+	std::string result = "[ ";
+    for (auto& val : vals) {
+        result += std::to_string(val) + " ";
+    }
+    result  += "]";
+    return result;
+}
+
+
+[[nodiscard]] std::string make_string(const std::vector<opcode_type>& types) {
     if (types.empty()) return "[]";
 
     std::string result = "[";
@@ -111,6 +126,7 @@ const char* get_opcode_name(const opcode_type type) {
     result += "]";
     return result;
 }
+
 
 /**
  * Get the String-representation of an EdgeType
@@ -237,9 +253,41 @@ void debug_cfgs(const std::vector<cfg>& graphs) noexcept{
 			for (auto* instruct : block->instructions) {
 				code.push_back(instruct->type);
 			}
-			kong_log(LOG_LEVEL_INFO, "\t\t%s\n", make_instruction_string(code).c_str());
+			kong_log(LOG_LEVEL_INFO, "\t\t%s\n", make_string(code).c_str());
 			code.clear();
 		}
 	}
 	kong_log(LOG_LEVEL_INFO, "\n\n");
+}
+
+
+
+/* ================================================================ */
+/* ====================== LIVENESS ANALYSIS ======================= */
+/* ================================================================ */
+
+void debug_liveness(const cfg& graph, live_sets live_info) noexcept{
+    kong_log(LOG_LEVEL_INFO, " <----- Liveness analysis - %s (id(%d)) -----> \n", graph.name.c_str(), live_info.fun_idx);
+    for(auto& bb : graph.blocks){
+        auto id = bb.get()->id;
+        kong_log(LOG_LEVEL_INFO, "\t Basic Block %d", id);
+        
+        if(live_info.LiveIn.count(id)){
+            kong_log(LOG_LEVEL_INFO, "\t\t LiveIn[id]: %s", make_string(live_info.LiveIn[id]).c_str());
+        }
+
+        if(live_info.LiveOut.count(id)){
+            kong_log(LOG_LEVEL_INFO, "\t\t LiveOut[id]: %s \n", make_string(live_info.LiveOut[id]).c_str());
+        }
+    }
+}
+
+
+void debug_interference_graph(const cfg& graph, ::ssa::recompilation::interference_graph i_graph) noexcept{
+    kong_log(LOG_LEVEL_INFO, " <----- Interference Graph - %s (id(%d)) -----> \n", graph.name.c_str(), graph.fun_idx);
+
+    for(auto& [var, vars]: i_graph){
+        kong_log(LOG_LEVEL_INFO, "\tVar(%d) -> [%s]", var, make_string(vars).c_str());
+    }
+    kong_log(LOG_LEVEL_INFO, "\n");
 }

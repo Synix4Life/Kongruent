@@ -119,6 +119,9 @@ static void write_functions(void) {
 			case OPCODE_NOT:
 				kong_log(LOG_LEVEL_INFO, "$%zu = NOT $%zu", o->op_negate.to.index, o->op_negate.from.index);
 				break;
+			case OPCODE_NEGATE:
+				kong_log(LOG_LEVEL_INFO, "$%zu = NEGATE $%zu", o->op_negate.to.index, o->op_negate.from.index);
+				break;
 			case OPCODE_STORE_VARIABLE:
 				kong_log(LOG_LEVEL_INFO, "$%zu = STORE_VARIABLE $%zu", o->op_store_var.to.index, o->op_store_var.from.index);
 				break;

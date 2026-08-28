@@ -57,8 +57,6 @@ void link_blocks(cfg_block* from, cfg_block* to){
         while (index < size) {
 			opcode *o = (opcode *)&data[index];
 			switch (o->type) {
-				case OPCODE_CALL: 
-					break;
 				case OPCODE_IF:
 					curr->instructions.push_back(o);
 					ident = IF;

@@ -6,6 +6,8 @@
 #include "construction.h"
 #include "def_use.h"
 #include "dominator_tree.h"
+#include "liveness.h"
+
 
 
 /* ----------------------------- UTIL ----------------------------- */
@@ -70,3 +72,21 @@ void debug_IDF_out(const std::uint32_t id, const std::vector<std::uint16_t>& N_a
  * @param graphs: Struct cfgs, list of CFGs for each function
  */
 void debug_cfgs(const std::vector<cfg>& graphs) noexcept;
+
+
+
+/* ---------------------- LIVENESS ANALYSIS ----------------------- */
+
+/**
+ * Method to print the Liveness Analysis' result
+ * @param graph CFG
+ * @param live_info The liveness information
+ */
+void debug_liveness(const cfg& graph, ::ssa::recompilation::live_sets live_info) noexcept;
+
+/**
+ * Method to print the interference graph
+ * @param graph CFG
+ * @param i_graph Interference graph
+ */
+void debug_interference_graph(const cfg& graph, ::ssa::recompilation::interference_graph i_graph) noexcept;

@@ -4,14 +4,24 @@
 #include <unordered_map>
 #include <vector>
 
+#include "errors.h"
+#include "log.h"
+#include "functions.h"
+#include "debugger.h"
+
 #include "cfg.h"
 #include "construction.h"
-#include "debugger.h"
 #include "def_use.h"
 #include "dominator_tree.h"
-#include "functions.h"
-#include "log.h"
-#include "errors.h"
+#include "liveness.h"
+#include "out_of_ssa.h"
+
+
+
+
+/* ================================================================== */
+/* ====================== INTO SSA PIPELINE ======================= */
+/* ================================================================== */
 
 
 /**
@@ -27,7 +37,7 @@
  *      i.e. where to place the function).
  * That algorithm creates the phi-functions, places the phi-functions into the bytecode and renumbers the bytecodes internal variables to fit the SSA guidelines
  * 
- * @param sequence_id The ID, where $ val > ID $ is NOT yet used in the bytecode (i.e. available indices)
+ * @param sequence_id The ID, where ' val > ID ' is NOT yet used in the bytecode (i.e. available indices)
  * 
  * @note REFERENCES used in sub-methods of the SSA-creation
  * 
@@ -42,7 +52,7 @@
  * 
  * -> The phi-function creation carries no further data that may be relevant later
  */
-inline void static_single_assignment_form(uint64_t sequence_id){
+inline void static_single_assignment_form(uint64_t& sequence_id){
     
     /* ------------------------ CFG ------------------------ */
 
@@ -150,3 +160,75 @@ inline void static_single_assignment_form(uint64_t sequence_id){
 #endif
     }
 }
+
+
+
+
+
+/* ================================================================== */
+/* ====================== OUT-OF-SSA PIPELINE ======================= */
+/* ================================================================== */
+
+
+namespace ssa {
+namespace recompilation {
+
+/**
+ * @brief DESTRUCT THE STATIC SINGLE ASSIGNMENT FORM
+ * 
+ * This function unifies all the necessary methods and calculations to leave the Static Single Assignment form correctly.
+ * 
+ * It performs the necessary liveness analysis and executes the functions presented by Sreedhar et al. in the below referenced paper. 
+ * Afterwards, the function inserts the copies into the bytestream, joins the variables back together and actually removes the PHI functions
+ * 
+ * @param sequence_id Variable sequence id
+ * 
+ * @note REFERENCE: Sreedhar, V. C., Ju, R. D.-C., Gillies, D. M., & Santhanam, V. (1999). Translating out of static single assignment form. International Static Analysis Symposium, 194–210.
+ */
+inline void out_of_SSA(uint64_t& sequence_id){
+
+    /* ------------------------ CFG ------------------------ */
+
+    // Need to be reconstructed, because the insertion into the bytestream nullifies the meaning of the CFG's instruction sets
+    // See the documentation of the ssa_pipeline for more information
+    std::vector<cfg> graphs = make_cfgs();
+
+    std::unordered_map<function_id, congruence_class> congruence_classes;
+
+    for(auto& graph : graphs){
+
+        /* ----------------- LIVENESS ANALYSIS ----------------- */
+
+        auto live_vars = liveness_analysis(graph);
+
+#ifndef NDEBUG
+    	debug_liveness(graph, live_vars);
+#endif
+
+        interference_graph i_graph = build_interference_graph(graph, live_vars);
+
+#ifndef NDEBUG
+        debug_interference_graph(graph, i_graph);
+#endif
+
+        /* ------------------ COPY PLACEMENT ------------------- */
+
+        auto cong_c = eliminate_phi_resource_interference(sequence_id, graph, i_graph, live_vars);
+        congruence_classes.emplace(graph.fun_idx, cong_c);
+
+    }
+
+    // Need to be reconstructed again, because the interference removal nullifies the meaning of the CFG's instruction sets
+    graphs = make_cfgs();
+
+    for(auto& graph : graphs){
+
+        /* ------------------ COALESCING PASS ------------------ */
+
+        clean_phi_functions(sequence_id, graph, congruence_classes[graph.fun_idx]);
+
+    }
+}
+
+} //namespace recompilation
+} // namespace SSA

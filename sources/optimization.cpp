@@ -11,6 +11,8 @@
 #include "functions.h"
 
 
+namespace opt {
+
 
 /* ------------------------------------------------------------------ */
 /* ---------------------- FILE-PRIVATE METHODS ---------------------- */
@@ -143,7 +145,7 @@ bool calculate(const bool LHS, const bool RHS, const opcode_type op){
         case OPCODE_AND: return LHS && RHS;
         case OPCODE_OR: return LHS || RHS;
         default: {
-            kong_log(LOG_LEVEL_ERROR, "bool calculate() calculation with %s not possible!", get_opcode_name(op));
+            kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] bool calculate() -> %s not supported!", get_opcode_name(op));
             exit(1);
         }
     }
@@ -181,7 +183,7 @@ int calculate(const int LHS, const int RHS, const opcode_type op){
         case OPCODE_LEFT_SHIFT: return LHS << RHS;
         case OPCODE_RIGHT_SHIFT: return LHS >> RHS;
         default: {
-            kong_log(LOG_LEVEL_ERROR, "int calculate() calculation with %s not possible!", get_opcode_name(op));
+            kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] int calculate() -> %s not supported!", get_opcode_name(op));
             exit(1);
         }
     }
@@ -213,7 +215,7 @@ float calculate(const float LHS, const float RHS, const opcode_type op){
         case OPCODE_AND: return LHS && RHS;
         case OPCODE_OR: return LHS || RHS;
         default: {
-            kong_log(LOG_LEVEL_ERROR, "float calculate() calculation with %s not possible!", get_opcode_name(op));
+            kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] float calculate() -> %s not supported!", get_opcode_name(op));
             exit(1);
         }
     }
@@ -280,7 +282,6 @@ void remove_trivial_phi(function_id id){
 
                 if(phi_preds.size() == 1){
                     create_assign_opcode(o->op_phi.to, *phi_preds.begin());
-                    break;
                 }
                 else if(phi_preds.size() == 2 && phi_preds.count(o->op_phi.to)) {
                     uint64_t replacement = 0;
@@ -288,13 +289,13 @@ void remove_trivial_phi(function_id id){
                         if (v != o->op_phi.to) replacement = v;
                     }
                     create_assign_opcode(o->op_phi.to, replacement);
-                    break;
                 }
                 else {
-                    create_phi_opcode(
+                    copy_opcode(o);
+                    /*create_phi_opcode(
                         o->op_phi.to, 
                         std::vector<uint64_t>(phi_preds.begin(), phi_preds.end())
-                    );
+                    );*/
                 }
                 break;
             }
@@ -323,7 +324,7 @@ std::tuple<
 {
     function *f = get_function(id);
     if (f->block == NULL) {
-        kong_log(LOG_LEVEL_ERROR, "Trying to hit discover in NULL-block function");
+        kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] Trying to discover in NULL-block function");
         exit(1);
 	}
 
@@ -497,8 +498,9 @@ void copy_propagation(function_id id, std::unordered_map<uint64_t, uint64_t>& re
 		opcode *o = (opcode *)&data[index];
 		switch (o->type) {
             case OPCODE_VAR:
+                copy_opcode(o);
             case OPCODE_ASSIGN:
-                // DO NOT COPY -> Same as OPCODE_STORE_VARIABLE INTERNAl
+                // Do not copy (like OPCODE_STORE_VARIABLE.VARIABLE_INTERNAL)
                 break;
             case OPCODE_STORE_VARIABLE:
                 // VARIABLE_INTERNAL always at internal, LOCAL and GLOBAL for args/ outside vars possible, therefore choosing this
@@ -632,6 +634,9 @@ void local_dead_code_elimination(function_id id){
         while (index < size) {
             opcode *o = (opcode *)&data[index];
             switch (o->type) {
+                case OPCODE_VAR:
+                    if(i == 0) dead_variables.insert(o->op_var.var.index);
+                    break;
                 case OPCODE_ASSIGN:
                     if(i == 0) dead_variables.insert(o->op_assign.to);
                     else dead_variables.erase(o->op_assign.from);
@@ -735,7 +740,11 @@ void local_dead_code_elimination(function_id id){
 	while (index < size) {
 		opcode *o = (opcode *)&data[index];
 		switch (o->type) {
-            case OPCODE_VAR: break;
+            case OPCODE_VAR:
+                if(dead_variables.find(o->op_var.var.index) == dead_variables.end()){
+                    copy_opcode(o);
+                }
+                break;
             case OPCODE_ASSIGN:
                 if(dead_variables.find(o->op_assign.to) == dead_variables.end()){
                     copy_opcode(o);
@@ -829,3 +838,5 @@ void local_dead_code_elimination(function_id id){
 
     f->code = new_opcode;
 }
+
+} // namespace opt

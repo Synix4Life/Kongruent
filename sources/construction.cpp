@@ -73,10 +73,10 @@ std::uint64_t get_param(
     dj_tree& tree,
     cfg& graph
 ){
-    if(bb_id == graph.entry->id) { return NO_DEFINITION_FOUND; }
     if(map_.find(bb_id) != map_.end()){
         return map_[bb_id];
     }
+    if(bb_id == graph.entry->id) { return NO_DEFINITION_FOUND; }
     // DT-Property: In general, a definition that goes to the block can only appear in the dom_parent or above
     auto parent_id = get_dom_parent(bb_id, offset, tree);
     return get_param(map_, parent_id, offset, tree, graph);
@@ -324,6 +324,7 @@ void construct_SSA(cfg& graph, std::vector<def_use_map>& map, std::vector<phi>& 
 	size_t   size = f->code.size;
 
     int map_idx = 0;
+    const int m_size = map.size(); 
 	new_opcode.size = 0;
 
     for(auto& basic_block : graph.blocks){
@@ -334,18 +335,18 @@ void construct_SSA(cfg& graph, std::vector<def_use_map>& map, std::vector<phi>& 
                 case OPCODE_SUB_AND_STORE_VARIABLE:
                 case OPCODE_ADD_AND_STORE_VARIABLE:
                 case OPCODE_DIVIDE_AND_STORE_VARIABLE:
-                    if(map[map_idx].type == USE && instr->op_store_var.from.index == map[map_idx].id){
+                    if(map_idx < m_size && map[map_idx].type == USE && instr->op_store_var.from.index == map[map_idx].id){
                         instr->op_store_var.from.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
-                    if(map[map_idx].type == STORE && instr->op_store_var.to.index == map[map_idx].id){
+                    if(map_idx < m_size && map[map_idx].type == STORE && instr->op_store_var.to.index == map[map_idx].id){
                         instr->op_store_var.to.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
                     copy_opcode(instr);
                     break;
                 case OPCODE_LOAD_ACCESS_LIST:
-                    if(map[map_idx].type == ASSIGN && instr->op_load_access_list.to.index == map[map_idx].id){
+                    if(map_idx < m_size && map[map_idx].type == ASSIGN && instr->op_load_access_list.to.index == map[map_idx].id){
                         instr->op_load_access_list.to.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
@@ -356,7 +357,7 @@ void construct_SSA(cfg& graph, std::vector<def_use_map>& map, std::vector<phi>& 
                 case OPCODE_ADD_AND_STORE_ACCESS_LIST:
                 case OPCODE_DIVIDE_AND_STORE_ACCESS_LIST:
                 case OPCODE_MULTIPLY_AND_STORE_ACCESS_LIST:
-                    if(map[map_idx].type == USE && instr->op_store_access_list.from.index == map[map_idx].id){
+                    if(map_idx < m_size && map[map_idx].type == USE && instr->op_store_access_list.from.index == map[map_idx].id){
                         instr->op_store_access_list.from.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
@@ -364,36 +365,36 @@ void construct_SSA(cfg& graph, std::vector<def_use_map>& map, std::vector<phi>& 
                     copy_opcode(instr);
                     break;
                 case OPCODE_VAR:
-                    if(map[map_idx].type == ASSIGN && instr->op_var.var.index == map[map_idx].id){
+                    if(map_idx < m_size && map[map_idx].type == ASSIGN && instr->op_var.var.index == map[map_idx].id){
                         instr->op_var.var.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
                     copy_opcode(instr);
                     break;
                 case OPCODE_NOT:
-                    if(map[map_idx].type == USE && instr->op_not.from.index == map[map_idx].id){
+                    if(map_idx < m_size && map[map_idx].type == USE && instr->op_not.from.index == map[map_idx].id){
                         instr->op_not.from.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
-                    if(map[map_idx].type == ASSIGN && instr->op_not.to.index == map[map_idx].id){
+                    if(map_idx < m_size && map[map_idx].type == ASSIGN && instr->op_not.to.index == map[map_idx].id){
                         instr->op_not.to.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
                     copy_opcode(instr);
                     break;
                 case OPCODE_NEGATE:
-                    if(map[map_idx].type == USE && instr->op_negate.from.index == map[map_idx].id){
+                    if(map_idx < m_size && map[map_idx].type == USE && instr->op_negate.from.index == map[map_idx].id){
                         instr->op_negate.from.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
-                    if(map[map_idx].type == ASSIGN && instr->op_negate.to.index == map[map_idx].id){
+                    if(map_idx < m_size && map[map_idx].type == ASSIGN && instr->op_negate.to.index == map[map_idx].id){
                         instr->op_negate.to.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
                     copy_opcode(instr);
                     break;
                 case OPCODE_RETURN:
-                    if(map[map_idx].type == USE && instr->op_return.var.index == map[map_idx].id){
+                    if(map_idx < m_size && map[map_idx].type == USE && instr->op_return.var.index == map[map_idx].id){
                         instr->op_return.var.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
@@ -401,7 +402,7 @@ void construct_SSA(cfg& graph, std::vector<def_use_map>& map, std::vector<phi>& 
                     break;
                 case OPCODE_CALL:
                     for(int i = 0; i < instr->op_call.parameters_size; ++i){
-                        if(map[map_idx].type == USE && instr->op_call.parameters[i].index == map[map_idx].id){
+                        if(map_idx < m_size && map[map_idx].type == USE && instr->op_call.parameters[i].index == map[map_idx].id){
                             instr->op_call.parameters[i].index = map[map_idx].replacement_id;
                             map_idx++;
                         }
@@ -426,29 +427,29 @@ void construct_SSA(cfg& graph, std::vector<def_use_map>& map, std::vector<phi>& 
                 case OPCODE_BITWISE_OR:
                 case OPCODE_LEFT_SHIFT:
                 case OPCODE_RIGHT_SHIFT:
-                    if(map[map_idx].type == USE && instr->op_binary.left.index == map[map_idx].id){
+                    if(map_idx < m_size && map[map_idx].type == USE && instr->op_binary.left.index == map[map_idx].id){
                         instr->op_binary.left.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
-                    if(map[map_idx].type == USE && instr->op_binary.right.index == map[map_idx].id){
+                    if(map_idx < m_size && map[map_idx].type == USE && instr->op_binary.right.index == map[map_idx].id){
                         instr->op_binary.right.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
-                    if(map[map_idx].type == ASSIGN && instr->op_binary.result.index == map[map_idx].id){
+                    if(map_idx < m_size && map[map_idx].type == ASSIGN && instr->op_binary.result.index == map[map_idx].id){
                         instr->op_binary.result.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
                     copy_opcode(instr);
                     break;
                 case OPCODE_IF:
-                    if(map[map_idx].type == USE && instr->op_if.condition.index == map[map_idx].id){
+                    if(map_idx < m_size && map[map_idx].type == USE && instr->op_if.condition.index == map[map_idx].id){
                         instr->op_if.condition.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
                     copy_opcode(instr);
                     break;
                 case OPCODE_WHILE_CONDITION:
-                    if(map[map_idx].type == USE && instr->op_while.condition.index == map[map_idx].id){
+                    if(map_idx < m_size && map[map_idx].type == USE && instr->op_while.condition.index == map[map_idx].id){
                         instr->op_while.condition.index = map[map_idx].replacement_id;
                         map_idx++;
                     }

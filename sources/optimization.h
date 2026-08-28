@@ -8,6 +8,9 @@
 #include "functions.h"
 
 
+namespace opt {
+
+
 /**
  * Data type specifiers for the constant_var structure -> Used in constant folding
  */
@@ -179,3 +182,5 @@ inline void optimize(){
         local_dead_code_elimination(i);
     }
 }
+
+} // namespace opt
