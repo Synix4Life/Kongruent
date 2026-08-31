@@ -42,9 +42,7 @@ void link_blocks(cfg_block* from, cfg_block* to){
 
         if (f->block == NULL) continue;
 
-        cfg control_graph;
-		control_graph.name = get_name(f->name);
-		control_graph.fun_idx = i;
+        cfg control_graph(i, get_name(f->name));
 
         uint8_t *data = f->code.o;
 		size_t   size = f->code.size;
@@ -103,7 +101,7 @@ void link_blocks(cfg_block* from, cfg_block* to){
 					}
 					else{
 						debug_context context = KONG_INIT_ZERO;
-						error(context, "[ERROR] OPCODE_BLOCK_END without stacked parent-identifier in %s", control_graph.name.c_str());
+						error(context, "[ INTERNAL ERROR ] OPCODE_BLOCK_END without stacked parent-identifier in %s", control_graph.name.c_str());
 					}
 
 					link_blocks(parent.get(), curr.get());
@@ -125,7 +123,7 @@ void link_blocks(cfg_block* from, cfg_block* to){
 
 		if(!stack.empty()){
 			debug_context context = KONG_INIT_ZERO;
-			error(context, "[ERROR] CFG-stack isn't empty: %s -> %d block(s) still stacked", control_graph.name.c_str(), stack.size());
+			error(context, "[ ERROR ] CFG-stack isn't empty: %s -> %d block(s) still stacked", control_graph.name.c_str(), stack.size());
 		}
 
 		// Previously: Iff current instr empty

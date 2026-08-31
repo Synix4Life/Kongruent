@@ -62,6 +62,11 @@ struct cfg{
     function_id fun_idx;
 
     bool dfs_run = false;
+
+    cfg(function_id fun_idx, std::string name) : 
+        fun_idx(fun_idx), 
+        name(name) 
+    {}
 };
 
 

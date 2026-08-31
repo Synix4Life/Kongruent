@@ -125,11 +125,9 @@ struct PiggyLevel {
 
 
 /**
- * PiggyBank data structure - Representing the idea of Sreedhar and Gao with practical changes
+ * PiggyBank - Representing the idea of Sreedhar and Gao
  */
-struct PiggyBank {
-  std::vector<PiggyLevel> bank_levels;
-};
+using PiggyBank = std::vector<PiggyLevel>;
 
 
 /**

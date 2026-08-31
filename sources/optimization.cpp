@@ -145,7 +145,7 @@ bool calculate(const bool LHS, const bool RHS, const opcode_type op){
         case OPCODE_AND: return LHS && RHS;
         case OPCODE_OR: return LHS || RHS;
         default: {
-            kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] bool calculate() -> %s not supported!", get_opcode_name(op));
+            kong_log(LOG_LEVEL_ERROR, "[ ERROR ] bool calculate() -> %s not supported!", get_opcode_name(op));
             exit(1);
         }
     }
@@ -183,7 +183,7 @@ int calculate(const int LHS, const int RHS, const opcode_type op){
         case OPCODE_LEFT_SHIFT: return LHS << RHS;
         case OPCODE_RIGHT_SHIFT: return LHS >> RHS;
         default: {
-            kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] int calculate() -> %s not supported!", get_opcode_name(op));
+            kong_log(LOG_LEVEL_ERROR, "[ ERROR ] int calculate() -> %s not supported!", get_opcode_name(op));
             exit(1);
         }
     }
@@ -215,7 +215,7 @@ float calculate(const float LHS, const float RHS, const opcode_type op){
         case OPCODE_AND: return LHS && RHS;
         case OPCODE_OR: return LHS || RHS;
         default: {
-            kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] float calculate() -> %s not supported!", get_opcode_name(op));
+            kong_log(LOG_LEVEL_ERROR, "[ ERROR ] float calculate() -> %s not supported!", get_opcode_name(op));
             exit(1);
         }
     }
@@ -324,7 +324,7 @@ std::tuple<
 {
     function *f = get_function(id);
     if (f->block == NULL) {
-        kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] Trying to discover in NULL-block function");
+        kong_log(LOG_LEVEL_ERROR, "[ ERROR ] Trying to discover in NULL-block function");
         exit(1);
 	}
 
@@ -670,10 +670,10 @@ void local_dead_code_elimination(function_id id){
                     else dead_variables.erase(o->op_negate.from.index);
                     break;
                 case OPCODE_CALL:
-                    if(i == 0) dead_variables.insert(o->op_call.var.index);
-                    else {
+                    // i == 0 : Functions shouldn't just be removed if the target variable isn't used
+                    if(i == 1) {
                         for(int p = 0; p < o->op_call.parameters_size; ++p) dead_variables.erase(o->op_call.parameters[p].index);
-                    }                    
+                    }
                     break;
                 case OPCODE_RETURN:
                     if(i == 1) dead_variables.erase(o->op_return.var.index);

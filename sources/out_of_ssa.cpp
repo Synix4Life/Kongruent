@@ -324,7 +324,7 @@ void resolve_interferences(
         queue.emplace(neighbors.size(), resource);
     }
 
-    // Resolve the neighbors by TODO:
+    // Resolve the neighbors by prioritizing resources with the most unresolved neighbors
     while(!queue.empty()){
         auto [_, resource] = queue.top();
         queue.pop();

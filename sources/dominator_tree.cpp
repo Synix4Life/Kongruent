@@ -30,7 +30,7 @@ void reset_attributes(dj_tree& tree) noexcept{
 
     if(N == 0){
         debug_context context = KONG_INIT_ZERO;
-        error(context, "[INTERNAL ERROR] DJ Graph for CFG(%s) couldn't be build, since no Basic Blocks exist in it", graph.name.c_str());
+        error(context, "[ ERROR ] DJ Graph for CFG(%s) couldn't be build, since no Basic Blocks exist in it", graph.name.c_str());
     }
     
     dj_tree tree;
@@ -105,10 +105,10 @@ void reset_attributes(dj_tree& tree) noexcept{
  * @throws [Internal Error]: Runtime Exception -> If there was a construction error
  */
 void verify_leveling(const PiggyBank& bank){
-    for(int i = 0; i < bank.bank_levels.size(); i++){
-        if(bank.bank_levels[i].lvl != i){
+    for(int i = 0; i < bank.size(); i++){
+        if(bank[i].lvl != i){
             debug_context context = KONG_INIT_ZERO;
-            error(context, "[INTERNAL ERROR] PiggyBank Levels incorrectly initialized");
+            error(context, "[ INTERNAL ERROR ] PiggyBank Levels incorrectly initialized");
         }
     }
 }
@@ -124,7 +124,7 @@ void verify_leveling(const PiggyBank& bank){
  */
 [[nodiscard]] std::uint16_t get_next(PiggyBank& bank, std::uint8_t& current_level){
     while (true){
-        auto& current_nodes = bank.bank_levels[current_level].nodes;
+        auto& current_nodes = bank[current_level].nodes;
 
         if(!current_nodes.empty()){
             std::uint16_t res = current_nodes.front();
@@ -149,7 +149,7 @@ void verify_leveling(const PiggyBank& bank){
  * @param offset The offset
  */
 void insert_node(PiggyBank& bank, dj_tree& tree, const std::uint16_t ix, const int offset){
-    bank.bank_levels[tree.blocks[ix].level].nodes.push_back(ix + offset);
+    bank[tree.blocks[ix].level].nodes.push_back(ix + offset);
 }
 
 
@@ -167,7 +167,7 @@ void insert_node(PiggyBank& bank, dj_tree& tree, const std::uint16_t ix, const i
 void visit(std::vector<std::uint16_t>& IDF, cfg& graph, dj_tree& tree, PiggyBank& bank, const int offset, dominator_block& node, std::uint8_t current_level){
     for(auto& edge: node.edges){
         if(edge.dest_id - offset >= tree.blocks.size()){
-            kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] Critical -> Offset calculations produced unsigend integer underflow");
+            kong_log(LOG_LEVEL_ERROR, "[ INTERNAL ERROR ] CRITICAL - Offset calculations produced unsigend integer underflow");
             exit(1);
         }
         auto& to_block = tree.blocks[edge.dest_id - offset];
@@ -204,7 +204,7 @@ void visit(std::vector<std::uint16_t>& IDF, cfg& graph, dj_tree& tree, PiggyBank
 
     PiggyBank bank;
     for(int i = 0; i <= current_level; i++){
-        bank.bank_levels.push_back(PiggyLevel(i));
+        bank.push_back(PiggyLevel(i));
     }
 
     verify_leveling(bank);

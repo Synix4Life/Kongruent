@@ -30,21 +30,21 @@ std::uint16_t get_dom_parent(
     dj_tree& tree
 ){
     if (bb_id < offset) {
-        kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] bb_id < offset");
+        kong_log(LOG_LEVEL_ERROR, "[ INTERNAL ERROR ] While building Phi function:\\ bb_id < offset");
         exit(1);
     }
 
     auto idx = bb_id - offset;
 
     if (idx >= tree.blocks.size()) {
-        kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] bb_id out of bounds -> idx(%d) greater size(%d) from bb(%d) and offset(%d)", idx, tree.blocks.size(), bb_id, offset);
+        kong_log(LOG_LEVEL_ERROR, "[ INTERNAL ERROR ] While building Phi function:\\ bb_id out of bounds -> idx(%d) greater size(%d) from bb(%d) and offset(%d)", idx, tree.blocks.size(), bb_id, offset);
         exit(1);
     }
 
     auto parent_id = tree.blocks[idx].dom_parent;
 
     if(parent_id == bb_id){
-        kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] Recursive lookup failed");
+        kong_log(LOG_LEVEL_ERROR, "[ INTERNAL ERROR ] While building Phi function:\\ Recursive lookup failed");
         exit(1);
     }
 
@@ -99,7 +99,7 @@ std::uint64_t get_from_phi(const std::vector<phi>& phis, const std::uint16_t tar
         }
     }
 
-    kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] No Phi in List, although one should exist");
+    kong_log(LOG_LEVEL_ERROR, "[ INTERNAL ERROR ] Expected: At least one Phi function in List ; Actual: None in the list");
     exit(1);
 }
 
@@ -346,6 +346,10 @@ void construct_SSA(cfg& graph, std::vector<def_use_map>& map, std::vector<phi>& 
                     copy_opcode(instr);
                     break;
                 case OPCODE_LOAD_ACCESS_LIST:
+                    if(map_idx < m_size && map[map_idx].type == USE && instr->op_load_access_list.from.index == map[map_idx].id){
+                        instr->op_load_access_list.from.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
                     if(map_idx < m_size && map[map_idx].type == ASSIGN && instr->op_load_access_list.to.index == map[map_idx].id){
                         instr->op_load_access_list.to.index = map[map_idx].replacement_id;
                         map_idx++;
@@ -359,6 +363,10 @@ void construct_SSA(cfg& graph, std::vector<def_use_map>& map, std::vector<phi>& 
                 case OPCODE_MULTIPLY_AND_STORE_ACCESS_LIST:
                     if(map_idx < m_size && map[map_idx].type == USE && instr->op_store_access_list.from.index == map[map_idx].id){
                         instr->op_store_access_list.from.index = map[map_idx].replacement_id;
+                        map_idx++;
+                    }
+                    if(map_idx < m_size && map[map_idx].type == ASSIGN && instr->op_store_access_list.to.index == map[map_idx].id){
+                        instr->op_store_access_list.to.index = map[map_idx].replacement_id;
                         map_idx++;
                     }
                     // TODO: Structs etc using Access Lists for now kept in Memory
@@ -463,7 +471,7 @@ void construct_SSA(cfg& graph, std::vector<def_use_map>& map, std::vector<phi>& 
     }
 
     if(phis.size() != 0){
-        kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] Phi list NOT empty after bytecode traversal! -> fun(%s)", graph.name.c_str());
+        kong_log(LOG_LEVEL_ERROR, "[ INTERNAL ERROR ] Phi list NOT empty after bytecode traversal! -> fun(%s)", graph.name.c_str());
         exit(1);
     }
 

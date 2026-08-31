@@ -248,7 +248,7 @@ live_sets liveness_analysis(cfg& f){
     for(auto& block: f.PO){
         if(block->succ.size() == 0){
             if(!LiveOut[block->id].empty()){
-                kong_log(LOG_LEVEL_ERROR, "[INTERNAL ERROR] Liveness analysis yielded a non-empty exit block -> LiveOut[BB(%d)] != {} (%s)", block->id, f.name.c_str());
+                kong_log(LOG_LEVEL_ERROR, "[ INTERNAL ERROR ] Liveness analysis yielded a non-empty exit block -> LiveOut[BB(%d)] != {} (%s)", block->id, f.name.c_str());
                 exit(1);
             }
         }
@@ -325,7 +325,7 @@ interference_graph build_interference_graph(cfg& f, live_sets& live){
     interference_graph i_graph;
 
     if(f.fun_idx != live.fun_idx){
-        kong_log(LOG_LEVEL_ERROR, "While building interference graph:\nLive Sets and CFG(%s) don't match", f.name.c_str());
+        kong_log(LOG_LEVEL_ERROR, " [ INTERNAL ERROR ] While building interference graph:\nLive Sets and CFG(%s) don't match", f.name.c_str());
         exit(1);
     }
 
@@ -426,7 +426,7 @@ interference_graph build_interference_graph(cfg& f, live_sets& live){
             }
         }
         
-        current_live.empty();
+        current_live.clear();
     }
 
     return i_graph;

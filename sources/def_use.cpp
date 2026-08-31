@@ -63,9 +63,13 @@
                 case OPCODE_MULTIPLY_AND_STORE_ACCESS_LIST:
                     if(store.find(o->op_store_access_list.from.index) != store.end())
                         map.push_back(def_use_map(o->op_store_access_list.from.index, USE, bb_id, NULL, o->type));
+                    if(store.find(o->op_store_access_list.to.index) != store.end())
+                        map.push_back(def_use_map(o->op_store_access_list.to.index, ASSIGN, bb_id, var_id++, o->type));
                     // TODO: Structs etc using Access Lists for now kept in Memory
                     break;
                 case OPCODE_LOAD_ACCESS_LIST:
+                    if(store.find(o->op_load_access_list.from.index) != store.end())
+                        map.push_back(def_use_map(o->op_load_access_list.from.index, USE, bb_id, NULL, o->type));
                     if(store.find(o->op_load_access_list.to.index) != store.end())
                         map.push_back(def_use_map(o->op_load_access_list.to.index, ASSIGN, bb_id, var_id++, o->type));
                     break;
